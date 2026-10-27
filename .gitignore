@@ -1,0 +1,82 @@
+
+# ==============================
+# Android / Gradle
+# ==============================
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration and SDK paths
+local.properties
+
+# Generated Android files
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+output-metadata.json
+
+# ==============================
+# Android Studio / IntelliJ
+# ==============================
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ==============================
+# Kotlin
+# ==============================
+.kotlin/
+.kotlin-build/
+
+# ==============================
+# Java
+# ==============================
+*.class
+hs_err_pid*
+replay_pid*
+
+# ==============================
+# Signing keys and secrets
+# ==============================
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+.env
+.env.*
+!.env.example
+
+# ==============================
+# Windows
+# ==============================
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ==============================
+# macOS
+# ==============================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ==============================
+# Editors and temporary files
+# ==============================
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+*.bak
+
+# ==============================
+# Logs
+# ==============================
+*.log
