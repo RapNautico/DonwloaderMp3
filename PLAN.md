@@ -152,17 +152,35 @@ Pantallas:
 
 # FASE 3 — PROYECTO ANDROID BASE
 
-Estado: ⬜ Pendiente
+Estado: 🟢 Compilación verificada. Instalación en emulador NO posible (falta aceleración por hipervisor).
 
-- [ ] Crear proyecto.
-- [ ] Configurar Gradle.
-- [ ] Configurar Kotlin.
-- [ ] Configurar Compose.
-- [ ] Configurar Material 3.
-- [ ] Configurar navegación.
-- [ ] Crear estructura de paquetes.
-- [ ] Crear tema.
-- [ ] Compilar proyecto inicial.
+Notas clave de esta fase:
+
+- AGP 9.4 usa **Kotlin integrado** (built-in Kotlin): NO se aplica `org.jetbrains.kotlin.android`; se aplica `com.android.application` + `org.jetbrains.kotlin.plugin.compose` (versión alineada con KGP 2.2.10 que AGP usa internamente). Fuente: documentación "Migrate to built-in Kotlin" y compat de AGP 9.4/9.0 en developer.android.com.
+- targetSdk fija 36 explícito (por defecto de AGP 9 hereda compileSdk; se decide conservador) y minSdk 26 propuesto.
+
+Tareas verificadas:
+
+- [x] Gradle Wrapper 9.6.0 generado y validado (`gradlew.bat --version`) con JBR 25.
+- [x] `gradlew.bat assembleDebug` → BUILD SUCCESSFUL.
+- [x] testDebugUnitTest → sin tests todavía (NO-SOURCE); no marcar como "probó cosas".
+- [x] APK debug generado: `app/build/outputs/apk/debug/app-debug.apk` (~18.9 MB).
+- [⚠] Instalación en emulador: NO completada — el hipervisor del emulador no está instalado en este equipo; se requiere instalar "Android Emulator hypervisor driver" (AEHD/WSL2 hypervisor) o un dispositivo físico. Pendiente de decisión del usuario (reinstalar herramientos está fuera del alcance de la fase).
+
+Criterios de aceptación (FASE 3):
+
+- Proyecto monomódulo Kotlin+Compose compila sin errores.
+- Icono de app, `strings.xml` español, `local.properties` con SDK local.
+- Sin secretos ni credenciales.
+- Código base: Activity única + NavigationHost + 5 destinos; MiniPlayer VISUAL (botones deshabilitados, no simula reproducción).
+- No se marcó como completada hasta verificar la compilación real (hecho).
+
+Pendiente documentado:
+
+- El hipervisor para emulador (o conectar dispositivo física).
+- El package `com.example.mimusica` es provisional: cambiar si el usuario quiere un package propio.
+
+Nota: el único warning persistente era el icono deprecado `QueueMusic`; ya corregido con la variante AutoMirrored.
 
 ---
 
@@ -343,11 +361,31 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 2 (completada como especificación). Próxima fase pendiente: FASE 3 (Proyecto Android Base).
+FASE 3 — Compilación real verificada.
 
 Último cambio:
 
-FASE 2 — Creado DESIGN_SYSTEM.md con: paleta light/dark de respaldo (semilla verde-musgo), estrategia dynamic color con fallback, colores semánticos por estado de descarga, escala tipográfica M3 con reglas de texto largo, escala de espaciado 4dp, shapes, elevación tonal, iconografía Material Icons, accesibilidad (targets 48 dp, content descriptions), 11 componentes reutilizables con spec visual, wireframes textuales de las 8 pantallas, matriz de estados por pantalla y reglas de calidad de audio honesta. `find-skills` consultado: ninguna skill de diseño Android confiable (≤2 instalaciones).
+FASE 3 — Verificación final completa (2026-10-27):
+- `gradlew.bat --version`: Gradle 9.6.0, Launcher/Daemon JVM = JBR OpenJDK 25.0.3 (`C:\Program Files\Android\Android Studio\jbr`).
+- `gradlew.bat assembleDebug` → **BUILD SUCCESSFUL** (segunda pasada, 36 tareas up-to-date tras la primera compilación de 3m48s).
+-`:app:testDebugUnitTest` → NO-SOURCE (no hay tests unitarios todavía; correcto en esta fase).
+- Versiones realmente en uso (fuentes oficiales consultadas el 2026-10-27 en developer.android.com):
+  - AGP: **9.4.0** (requiere Gradle ≥ 9.6.0, JDK ≥ 17, soporta hasta API 37 — coincide con el SDK instalado).
+  - Gradle: **9.6.0** (wrapper, `distributionUrl=gradle-9.6.0-bin.zip`).
+  - Kotlin: **integrado en AGP 9.x** (built-in Kotlin; KGP interno ≥ 2.2.10; NO se aplica `kotlin-android`). `gradle.bat --version` reporta Kotlin 2.3.21 para el propio Gradle (Groovy DSL del wrapper, distinto del KGP del proyecto).
+  - Compose Compiler plugin: `org.jetbrains.kotlin.plugin.compose` versión **2.2.10** (alineado con el KGP mínimo requerido por AGP 9.0; fuente: "Migrate to built-in Kotlin" + "Setup Compose dependencies and compiler" en developer.android.com).
+  - Compose BOM: **2026.09.00** (recomendación vigente; exige compileSdk 37 + AGP 9 — verificado en la misma fuente).
+  - `compileSdk = 37`, `targetSdk = 36` (explícito, conservador), `minSdk = 26` (propuesto, sujeto a validación).
+- APK debug EXISTE: `H:\Proyectos code\Donwloader\app\build\outputs\apk\debug\app-debug.apk` (18.86 MB).
+- `.gitignore` verificado: excluye `build/`, `local.properties`, APKs, keystores y secretos; conserva `gradle/wrapper/gradle-wrapper.jar` (negación explícita) y el código fuente.
+- Emulador: SIGUE no disponible — el hipervisor de aceleración no está instalado; queda PENDIENTE (no se instalaron drivers ni se modificó Windows/BIOS). Alternativa: conectar un dispositivo físico para instalar/apertura del APK.
+
+Errores encontrados y corregidos durante la fase (compilaciones fallidas previas):
+1. `stringResource` usado dentro de bloque `semantics {}` no-composable (EmptyState/MiniPlayer) → se resolvió el string fuera del bloque.
+2. `Column` sin importar e import de `Color.Transparent` inexistente en HomeScreen → imports corregidos a `Column`/`Color.Transparent`.
+3. Icono `QueueMusic` deprecado → reemplazado por `Icons.AutoMirrored.Filled.QueueMusic`.
+
+Estado: la base COMPILA y el APK existe. FASE 3 marcada como completada con la salvedad documentada: la instalación/ejecución en emulador queda pendiente por falta de aceleración (requiere decisión del usuario).
 
 ---
 

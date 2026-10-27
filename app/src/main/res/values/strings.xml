@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mi Música</string>
+    <string name="home">Inicio</string>
+    <string name="library">Biblioteca</string>
+    <string name="playlists">Playlists</string>
+    <string name="downloads">Descargas</string>
+    <string name="settings">Ajustes</string>
+    <string name="mini_player_no_track">Nada en reproducción</string>
+    <string name="mini_player_hint">La reproducción llegará más adelante</string>
+    <string name="home_empty_title">Tu música empieza aquí</string>
+    <string name="home_empty_description">Añade archivos de audio desde tu dispositivo para construir tu biblioteca sin conexión.</string>
+    <string name="home_empty_cta">Añadir música</string>
+    <string name="section_not_available_title">Sección en construcción</string>
+    <string name="section_not_available_description">Esta pantalla se implementará en fases siguientes del proyecto (ver PLAN.md).</string>
+    <string name="player_fullscreen">Reproductor</string>
+</resources>
