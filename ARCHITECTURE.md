@@ -65,12 +65,12 @@ MediaStore / APIs modernas de almacenamiento Android.
 
 - **Jetpack Compose + Material 3**: sistema de UI declarativo oficial de Android; render, theming (dynamic color) y estados (loading/empty/error) reutilizables sin bibliotecas de terceros.
 - **Navigation Compose**: navegación declarativa integrada con Compose; evita reinventar back stack y argumentos.
-- **Room**: persistencia de metadata (biblioteca, descargas, playlists) con Flow nativo; sobre SQLite directo ofrece comprobación de tipos en compilación y migraciones gestionadas.
+- **Room (androidx.room3, ver §22.7)**: persistencia de metadata (biblioteca, descargas, playlists) con Flow nativo; sobre SQLite directo ofrece comprobación de tipos en compilación y migraciones gestionadas.
 - **Media3 (ExoPlayer + MediaSessionService)**: reemplazo único oficial de EXO/SimpleExoPlayer y compatibilidad integrada con MediaSession, notificación multimedia, audio focus y Bluetooth.
 - **Coroutines + Flow**: modelo de concurrencia oficial de Kotlin; WorkManager cuando aplique para descargas diferidas/seguras tras reinicio (decisión fina en FASE 7).
 - **KSP**: procesamiento anotaciones Room (opcional, lo que Room requiere por defecto).
 - **MediaStore/SAF**: sin `WRITE_EXTERNAL_STORAGE`; escritura de audio con permisos mínimos (API 30+) y selección de archivos con SAF.
-- **JUnit + Robolectric + Compose UI Test + androidTest**: stack de pruebas oficial sin dependencias exóticas.
+- **JUnit + Room tests en JVM (sin Robolectric) + Compose UI Test + androidTest**: stack oficial; ver §22.7.
 
 No se necesita: Retrofit (no servicio REST definido aún), Hilt (DI manual en primer momento), Coil solo si se determina como necesario para carátulas (decisión Fase 2, con carga artesanal por URI local en la mayoría de casos).
 
@@ -569,6 +569,21 @@ java toolchain = 17     ✓ límite de lenguaje/API de Java para fuentes del pro
 ```
 
 No se requiere desinstalar ni modificar ninguna instalación Java existente.
+
+---
+
+# 22.7 PERSISTENCIA LOCAL — Room 3 (FASE 4, verificada 2026-10-27)
+
+- Dependencias: `androidx.room3:room3-runtime 3.0.3` + `room3-compiler` vía KSP `2.2.10-2.0.2` (emparejado con el Kotlin integrado del AGP 9.4) + `androidx.sqlite:sqlite-bundled 2.7.1`. Room Gradle plugin `androidx.room3` para exportar esquema a `app/schemas` (v1).
+- Driver: `BundledSQLiteDriver` en producción y en tests (SQLite compilada, versión consistente; recomendación oficial de Room KMP). `AppDatabase.build(path)` reutilizable por tests.
+- Identidad/duplicados: PRIMARY KEY = URI del contenido (`songs.uri`), `OnConflictStrategy.IGNORE` al insertar; re-importar el mismo archivo NO duplica filas.
+- Metadatos opcionales (`mimeType`, `sizeBytes`, `bitrateBps`) nullable: null = desconocido; nunca se inventa calidad de audio (AGENTS §8). No hay columnas de "calidad" subjetiva.
+- Búsqueda: `LIKE '%'||:q||'%'` sobre `title`/`artist` (índices creados); observación `Flow<List<SongEntity>>` ordenada por título COLLATE NOCASE.
+- Arquitectura: Presentation solo ve `domain/repository/SongRepository` (interfaz pura); `SongRepositoryImpl` (Data) traduce Entity<->Song con mapeo explícito. DAO/solo dentro de Data/di.
+- DI manual: `AppContainer` creado por `MiMusicaApplication`; singleton de DB por proceso.
+- Tests en JVM sin Robolectric ni emulador: la misma build de producción (`Room.databaseBuilder(name) + BundledSQLiteDriver`) sobre archivo temporal de `TemporaryFolder`. Se necesita `testRuntimeOnly(sqlite-bundled-jvm)` porque la variante Android del driver carga una `.so` nativa de Android que la JVM del test no contiene.
+- Ajustes de build empleados (mensajes oficiales de AGP): `android.disallowKotlinSourceSets=false` (KSP añade fuentes generadas; error "Using kotlin.sourceSets DSL is not allowed with built-in Kotlin"), y la extensión Room se configura con `configure<androidx.room3.gradle.RoomExtension>` porque el accesor `room{}` del plugin no se genera con built-in Kotlin.
+- Warnings aceptados documentados: `System::loadLibrary` restringido en JDK 25 (requerirá `--enable-native-access` en JDKs futuros); "Kotlin no soporta target 25, degrada a 24" al compilar las pruebas unitarias.
 
 ---
 

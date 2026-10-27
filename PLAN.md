@@ -186,15 +186,25 @@ Nota: el único warning persistente era el icono deprecado `QueueMusic`; ya corr
 
 # FASE 4 — BASE DE DATOS
 
-Estado: ⬜ Pendiente
+Estado: 🟢 Implementada y verificada (compilación + 9/9 tests OK el 2026-10-27).
 
-- [ ] Configurar Room.
-- [ ] SongEntity.
-- [ ] SongDao.
-- [ ] AppDatabase.
-- [ ] Repository.
-- [ ] Migraciones.
-- [ ] Tests.
+- [x] Configurar Room: **Room 3 (`androidx.room3`) 3.0.3** con KSP `2.2.10-2.0.2` (alineado al Kotlin integrado del AGP 9.4) y SQLite embebido `sqlite-bundled 2.7.1` con `BundledSQLiteDriver` (recomendación oficial Room KMP). Room Gradle plugin `androidx.room3` exporta el esquema a `app/schemas` (v1 generada).
+- [x] SongEntity: PK = URI del contenido (mismo archivo importado N veces = 1 fila); índices en title/artist; metadatos opcionales nullable (mimeType, sizeBytes, bitrateBps) — null = desconocido, nunca inventado (AGENTS §8).
+- [x] SongDao: insert (OnConflict.IGNORE), update, delete, getByUri, búsqueda LIKE case-insensitive título/artista, observación `Flow` ordenada por título.
+- [x] AppDatabase: `@Database(version 1, exportSchema)`; builder con `Room.databaseBuilder(name) + setDriver(BundledSQLiteDriver())`.
+- [x] Repository: `SongRepositoryImpl` (Data) implementa `domain/repository/SongRepository`; mapeo explícito Entity<->Song; Domain libre de Room.
+- [x] DI manual: `AppContainer` + `MiMusicaApplication` (sin Hilt). Pendiente conectar ViewModels en FASE 5+.
+- [x] Tests: `SongRepositoryTest` — JVM puro SIN Robolectric ni emulador, con la MISMA configuración de producción (Room + BundledSQLiteDriver + archivo temporal). Cubre: inserción y consulta por id, URI inexistente→null, duplicados (IGNORE), update, delete, búsqueda por título/artista (case-insensitive), emisión reactiva del Flow (ordenado), y persistencia reabriendo el archivo. **Resultado: 9 tests, 0 fallos, 0 errores.**
+
+Decisiones y problemas reales resueltos en esta fase:
+
+1. Doc oficial (2026-10-23/21) introduce `androidx.room3` (Room 3.0.3 como estable recomendado) — se usa esa línea, no `androidx.room` 2.8.5.
+2. El accesor Kotlin DSL `room { schemaDirectory(...) }` del plugin Room no se genera con built-in Kotlin de AGP 9.4 → se configura la extensión explícitamente: `configure<androidx.room3.gradle.RoomExtension> { schemaDirectory(...) }`.
+3. KSP añade fuentes vía `kotlin.sourceSets` y built-in Kotlin lo bloquea → propiedad oficial indicada por el propio AGP: `android.disallowKotlinSourceSets=false` en gradle.properties.
+4. En tests JVM, el driver embebido de la variante Android intenta cargar una `.so` nativa de Android → `testRuntimeOnly("androidx.sqlite:sqlite-bundled-jvm")` (variante desktop/JVM del mismo driver) y el mismo código de test funciona.
+5. Warning JVM (no bloqueante): `System::loadLibrary` restringido en JDK 25 al cargar SQLite nativa; también "Kotlin no soporta target 25, degrada a 24" en compilación de tests. Sin impacto funcional; revisar en próximas versiones de Kotlin.
+
+Pendiente dentro de la fase: connectar el repositorio a UI cuando la biblioteca importe canciones (FASE 5/7). Migraciones: no aplica todavía (esquema v1 inicial).
 
 ---
 
