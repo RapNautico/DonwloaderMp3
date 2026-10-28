@@ -5,15 +5,18 @@ import androidx.room3.Index
 import androidx.room3.PrimaryKey
 
 /**
- * Fila de la tabla de canciones.
+ * Fila de la tabla de canciones (FASE 8: v3).
  *
  * Identidad estable: la URI del contenido es la PRIMARY KEY, así el mismo
  * archivo importado varias veces no crea duplicados (requisito de FASE 4).
- * Índices de búsqueda: título y artista (consultas frecuentes de la biblioteca).
+ * Índices justificados por consultas previstas de FASE 8 (solo esos):
+ * - title/artist: búsqueda y orden por título/artista.
+ * - album: navegación "Álbum → canciones".
+ * - dateAddedMs: recientes / orden cronológico.
  */
 @Entity(
     tableName = "songs",
-    indices = [Index("title"), Index("artist")],
+    indices = [Index("title"), Index("artist"), Index("album"), Index("dateAddedMs")],
 )
 data class SongEntity(
     @PrimaryKey val uri: String,
@@ -30,4 +33,6 @@ data class SongEntity(
     val sampleRateHz: Int? = null,
     val channels: Int? = null,
     val artworkPath: String? = null,
+    /** Género real informado por el archivo; null = desconocido (D8.1). */
+    val genre: String? = null,
 )

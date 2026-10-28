@@ -120,6 +120,7 @@ class SafAudioImporter(
             sampleRateHz = stream.sampleRateHz,
             channels = stream.channels,
             artworkPath = artworkPath,
+            genre = metadata.genre,
         )
 
         PreparedAudio(requestedUri = rawUri, displayName = displayName, song = song, failure = null)

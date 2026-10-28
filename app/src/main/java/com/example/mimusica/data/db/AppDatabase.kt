@@ -17,7 +17,7 @@ import androidx.sqlite.SQLiteConnection
  */
 @Database(
     entities = [SongEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,11 +39,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 → v3 (FASE 8.1, decisión D8.1/D8.2 de ARCHITECTURE §22.11):
+         * columna genre TEXT y SOLO los índices justificados:
+         * album (navegación por álbumes) y dateAddedMs (recientes/orden).
+         * Los registros existentes NO se modifican: genre queda NULL.
+         */
+        private val MIGRATION_2_3 = object : Migration(startVersion = 2, endVersion = 3) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                listOf(
+                    "ALTER TABLE songs ADD COLUMN genre TEXT",
+                    "CREATE INDEX IF NOT EXISTS `index_songs_album` ON `songs` (`album`)",
+                    "CREATE INDEX IF NOT EXISTS `index_songs_dateAddedMs` ON `songs` (`dateAddedMs`)",
+                ).forEach { sql ->
+                    connection.prepare(sql).use { statement -> statement.step() }
+                }
+            }
+        }
+
         /** Instancia de producción o pruebas, basada en archivo en disco. */
         fun build(path: String): AppDatabase =
             Room.databaseBuilder<AppDatabase>(name = path)
                 .setDriver(BundledSQLiteDriver())
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
 
         /** Conveniencia para producción con el path estándar de la app. */

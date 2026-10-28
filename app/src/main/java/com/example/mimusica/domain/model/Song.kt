@@ -29,4 +29,10 @@ data class Song(
      * SAF de la URI original. null = sin portada (mostrar placeholder).
      */
     val artworkPath: String? = null,
+    /**
+     * Género informado POR EL ARCHIVO (MediaMetadataRetriever, FASE 8).
+     * null = el archivo no lo informa; NUNCA se infiere del nombre/artista/
+     * carpeta (regla de datos reales del proyecto).
+     */
+    val genre: String? = null,
 )

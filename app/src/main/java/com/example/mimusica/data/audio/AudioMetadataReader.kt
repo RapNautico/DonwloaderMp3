@@ -38,6 +38,8 @@ class AudioMetadataReader(private val context: Context) {
         val durationMs: Long?,
         val bitrateBps: Long?,
         val artwork: EmbeddedPicture?,
+        /** Género real del archivo; null/blank → null (nunca inferido, D8.1). */
+        val genre: String?,
     )
 
     fun displayNameOrNull(uri: Uri): String? = runCatching {
@@ -96,8 +98,9 @@ class AudioMetadataReader(private val context: Context) {
         try {
             runCatching { retriever.setDataSource(context, uri) }.getOrElse { return null }
 
-            fun md(key: Int): String? =
-                runCatching { retriever.extractMetadata(key) }.getOrNull()?.takeIf { it.isNotBlank() }
+            fun md(key: Int): String? = normalizeOptionalText(
+                runCatching { retriever.extractMetadata(key) }.getOrNull(),
+            )
 
             val artworkBytes = runCatching { retriever.embeddedPicture }.getOrNull()
             val artwork = artworkBytes?.takeIf { it.isNotEmpty() }
@@ -112,14 +115,24 @@ class AudioMetadataReader(private val context: Context) {
                 durationMs = md(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull(),
                 bitrateBps = md(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull(),
                 artwork = artwork,
+                genre = md(MediaMetadataRetriever.METADATA_KEY_GENRE),
             )
         } finally {
             runCatching { retriever.release() }
         }
     }
 
-    private fun sniffMimeForImage(bytes: ByteArray): String? = when {
-        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
+    companion object {
+        /**
+         * Normalización de textos de metadatos (requisito D8.1 y regla de
+         * datos reales): trim; vacío/blank → null (= "desconocido" en UI).
+         * Función PURA y testeable en JVM sin dispositivo.
+         */
+        fun normalizeOptionalText(raw: String?): String? =
+            raw?.takeIf { it.isNotBlank() }?.trim()
+    }
+
+    private fun sniffMimeForImage(bytes: ByteArray): String? = when {        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
         bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
             bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "image/png"
         else -> null

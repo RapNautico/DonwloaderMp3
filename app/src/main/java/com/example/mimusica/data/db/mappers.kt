@@ -13,6 +13,10 @@ fun Song.toEntity(): SongEntity = SongEntity(
     mimeType = mimeType,
     sizeBytes = sizeBytes,
     bitrateBps = bitrateBps,
+    sampleRateHz = sampleRateHz,
+    channels = channels,
+    artworkPath = artworkPath,
+    genre = genre,
 )
 
 fun SongEntity.toSong(): Song = Song(
@@ -25,4 +29,8 @@ fun SongEntity.toSong(): Song = Song(
     mimeType = mimeType,
     sizeBytes = sizeBytes,
     bitrateBps = bitrateBps,
+    sampleRateHz = sampleRateHz,
+    channels = channels,
+    artworkPath = artworkPath,
+    genre = genre,
 )
