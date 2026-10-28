@@ -280,35 +280,36 @@ Al retomar: re-verificar la documentación oficial vigente de cada proveedor, re
 
 ---
 
-# FASE 8 — BIBLIOTECA COMPLETA (próxima fase activa)
+# FASE 8 — BIBLIOTECA COMPLETA (fase activa)
 
-Estado: ⬜ Pendiente (esperando autorización del usuario)
+Estado: 🔵 En curso — 8.0 documentado y AUTORIZADO (2026-10-28); implementación por entregas desde 8.1.
 
-Objetivo: convertir la biblioteca de FASE 5 en la experiencia completa de gestión de música local, sin red (solo Room + archivos locales).
+## Decisiones autorizadas (8.0, 2026-10-28)
 
-## 8.1 Listado
+1. **Género**: campo nullable `genre` en `Song`/`SongEntity`; se extrae ÚNICAMENTE cuando `MediaMetadataRetriever.METADATA_KEY_GENRE` (API oficial 20+) devuelve un valor real; no se infiere ni inventa; `null` = desconocido → etiqueta "Desconocido" en UI. Entra en la migración Room **v2→v3**.
+2. **Migración v3**: `ADD COLUMN genre TEXT` + índices de **album** y **dateAddedMs** — justificados EXCLUSIVAMENTE por las consultas previstas (navegación por álbumes, orden/recientes). Esquema v3 exportado a `app/schemas`.
+3. **Eliminación**: "Eliminar de biblioteca" borra SOLO el registro de Room. El archivo físico NO se elimina jamás automáticamente; la acción "Eliminar también el archivo" queda SEPARADA y NO se implementa en FASE 8 (requerirá ConfirmDialog y aprobación explícita del usuario).
+4. **Canciones inválidas**: nunca se eliminan registros automáticamente; identificadas bajo demanda (no en cada recomposición) con badge/etiqueta comprensible; los errores de acceso nunca crashean la app.
+5. **Datos reales** regla mantenida (AGENTS §8): null → "Desconocido" en UI; el MIME real (MediaExtractor) sigue siendo fuente de verdad del formato.
+6. **Arquitectura**: Presentation → Domain → Data → Room/Android; la UI no toca DAO; Domain sin Android. Play/Playlist quedan como callbacks/contratos preparados (sin Media3 ni motor real).
+7. **FASE 7 sigue PAUSADA**: `domain/source/*` y `domain/download/*` intocables y sin contaminar la biblioteca.
+8. **Dependencias**: cero añadidas automáticamente. Si 8.9 necesita `kotlinx-coroutines-test` u otra, se solicita aprobación explícita con justificación (por qué/problema/APK/alternativa/arquitectura) ANTES de agregarla.
 
-- [ ] Lista/cuadrícula conmutables; artistas, álbumes; género SOLO si el archivo real lo informa (nunca inventado, AGENTS §8).
-- [ ] Recientes / añadidas recientemente (`dateAddedMs` ya persiste; `lastPlayedMs` solo cuando el Reproductor (9) lo escriba de verdad).
-- [ ] Ficha técnica por canción con datos REALES ya en Room v2: formato (mimeType), duración, tamaño, bitrate cuando exista (bitrateBps), sample rate (sampleRateHz), canales, artwork (artworkPath).
+## Entregas
 
-## 8.2 Búsqueda local
+- [x] **8.0 — Auditoría y diseño**: auditoría de Song/Room/Repository/UI/navegación completa (2026-10-28): verificado que Song tiene uri/título/artista/álbum/duración/dateAddedMs/mime/tamaño/bitrate/sampleRate/canales/artworkPath; faltaban genre (decidido incluir) y lastPlayedMs (posponer a Reproductor); Room v2 con índices title/artist; Repository sin búsquedas por álbum/género, recientes ni agrupados; UI solo esqueleto (sin búsqueda/orden/filtros/detalle/gestión); navegación plana de 5 destinos sin rutas anidadas.
+- [ ] **8.1 — Modelo + Room v3**: `genre` nullable en Song/SongEntity; migración suspend prepare/step v2→v3; índices album/dateAddedMs; extracción real del género en `AudioMetadataReader` (fallback: null); mappers actualizados.
+- [ ] **8.2 — Consultas Room + Repository**: búsquedas por título/artista/álbum case-insensitive; recientes; por artista/por álbum; agrupados artistas/álbumes (DISTINCT + conteo vía SQL, sin N+1); Flows cuando aplique; `ArtistSummary`/`AlbumSummary` en Domain.
+- [ ] **8.3 — Búsqueda + orden**: reactiva (Flow→StateFlow, debounce); toma en cuenta vacía/espacios/sin resultados; ordens título A-Z/Z-A, artista, álbum, recientes/antiguas, duración; orden en estado de UI (SIN DataStore: persistencia de preferencias espera Fase 11 con aprobación).
+- [ ] **8.4 — Artistas + álbumes**: rutas anidadas sin tocar la bottom bar; buckets "Artista desconocido"/"Álbum desconocido" para nulls; reutilización de componentes.
+- [ ] **8.5 — Detalle de canción**: bottom sheet M3 con datos REALES; null → "Desconocido"; sin inventar bitrate/calidad/codec.
+- [ ] **8.6 — Gestión**: menú contextual por canción: reproducir (callback preparado para 9), añadir a playlist (para 10), información, eliminar de biblioteca (solo registro, con ConfirmDialog).
+- [ ] **8.7 — Inválidos**: URI inaccesible/borrado/corrupto identificados bajo demanda con estado visible; sin crash y sin auto-eliminación.
+- [ ] **8.8 — UI Library completa**: SearchBar, Tabs (Canciones/Artistas/Álbumes), FAB importar, SongListItem spec DESIGN_SYSTEM §5, ErrorState + esqueleto (no spinner global), badges 48dp/a11y.
+- [ ] **8.9 — Tests**: repository/DAO (listar/buscar/ordenar/recientes/artistas/álbumes/eliminación lógica), lógica pura (nulos/inválidos/duplicados/vacía), ViewModel si coroutines-test es aprobada.
+- [ ] **8.10 — Validación final**: assembleDebug + testDebugUnitTest + diff --check + revisión de schema v3 + informe.
 
-- [ ] SOLO Room, sin red: título; artista/álbum/género según disponibilidad real.
-- [ ] Estados: resultados · sin resultados · consulta vacía · loading · error.
-- Base existente: `SongRepository.searchSongs` (ampliar solo si el requisito lo exige).
-
-## 8.3 Gestión de canciones
-
-- [ ] Por canción: reproducir (stub funcional hasta 9), añadir a playlist (hasta 10), información, localizar, ELIMINAR de la biblioteca.
-- [ ] DECISIÓN DOCUMENTADA: eliminar de la biblioteca NO borra físicamente el archivo por defecto; el borrado físico será una acción separada, explícita y confirmada (si se adopta otra política, se documenta aquí el cambio).
-
-## 8.4 Archivos inválidos / resiliencia
-
-- [ ] Archivo borrado externamente · URI revocada (permiso persistible perdido) · corrupto · metadatos incompletos · formato no soportado.
-- Mantener regla de FASE 5: no inventar metadatos; fallos por archivo sin detener el lote (patrón `ImportFailureReason`).
-
-Criterios de aceptación: `assembleDebug` OK; tests JVM (nuevos y los 37 existentes) OK; 0 dependencias nuevas previstas; pruebas de dispositivo siguen pendientes sin emulador.
+Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 dependencias nuevas (salvo aprobación explícita en 8.9); sin datos inventados; contratos de 9/10 preparados sin implementar; migración v3 probada en JVM; pruebas de dispositivo siguen pendientes sin emulador.
 
 ---
 
@@ -436,11 +437,11 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 7 (descargas) 🟡 PAUSADA por decisión del usuario (2026-10-28) tras completar la entrega 7.0 (contratos de dominio + 18 tests; 37/37 JVM OK y `assembleDebug` BUILD SUCCESSFUL el 2026-10-27). **Próxima fase activa: FASE 8 — Biblioteca completa** (pendiente de autorización). FASE 7.0: archivos `domain/source/` y `domain/download/` (y sus tests) SIN TRACKING en git todavía — conservados intactos, commit pendiente de tu orden.
+FASE 8 — Biblioteca completa: 8.0 AUDITORÍA/DISEÑO AUTORIZADO y documentado (2026-10-28). Implementación por entregas 8.1→8.10 autorizada (ver sección FASE 8 para las decisiones aprobadas: género real + migración v3 + índices album/dateAddedMs + eliminación solo-registro + inválidos identificados bajo demanda). FASE 7 🟡 PAUSADA (contratos 7.0 committeados en `84c687c`, intocables). FASE 5 verificada (37/37 tests + assembleDebug OK).
 
 Último cambio:
 
-FASE 7.0 (2026-10-27) — Contratos de dominio puros, sin Android, sin red, sin Room, 0 dependencias: `SourceCapabilities`, `TrackReference` (autorización POR recurso: `downloadAllowed`), `SourceMetadata`/`DownloadFormatSpec`, `evaluateDownloadAuthorization()`, `DownloadState` (transiciones válidas explícitas, terminales sin salida) y `DownloadQueue` (FIFO máx. 2, cancelación, sin reenqueue de terminadas). 18 tests nuevos. `DownloadEngine` y `DownloadRepository` NO creados: se posponen a 7.2/7.3 por no inventarse decisiones ya tomadas (motor HTTP y persistencia).
+FASE 8.0 — Documentación autorizada: PLAN.md FASE 8 (decisiones + entregas) y ARCHITECTURE.md §22.11 (modelo de biblioteca, migración v3, eliminación lógica/física, contratos para 9/10). Sin código.
 
 Roadmap replanificado (2026-10-28):
 

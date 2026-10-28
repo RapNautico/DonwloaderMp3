@@ -708,6 +708,37 @@ Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de c
 
 ---
 
+# 22.11 FASE 8 — MODELO DE BIBLIOTECA (decisiones autorizadas, 2026-10-28)
+
+Decisión previa al código. Completa los contratos ya existentes (Room v2, `Song`, `SongRepository`, importación SAF de FASE 5) sin tocar la FASE 7 pausada (`domain/source/*`, `domain/download/*`).
+
+## D8.1 Género (real o nada)
+
+- `Song.genre: String?` y `SongEntity.genre: String?` (nullable; `null` = desconocido).
+- Fuente ÚNICA: `MediaMetadataRetriever.METADATA_KEY_GENRE` (API oficial, disponible ≥ API 20) durante la importación SAF — el género se extrae del archivo; nunca se infiere del nombre, del artista ni de la URI (AGENTS §8/§19).
+- UI: null → etiqueta localizada "Desconocido".
+
+## D8.2 Room v3
+
+- `MIGRATION_1_2` existente se conserva; nueva **`MIGRATION_2_3`** (suspend, `connection.prepare/step`, mismos hechos verificados de `SQLiteConnection` — NO existe `execSQL`):
+  - `ALTER TABLE songs ADD COLUMN genre TEXT`.
+  - `CREATE INDEX index_songs_album ON songs(album)` y `index_songs_dateAddedMs` — justificados SOLO porque las consultas previstas (dectalle/orden por álbum, recientes) los usan en WHERE/ORDER BY. La PK `uri` ya garantiza el índice por URI.
+- Schemas v1/v2/v3 exportados. El plan de migración para descargas (FASE 7 pausada) tomará la siguiente versión libre al retomarse.
+
+## D8.3 Consultas y repositorio
+
+- Agrupados de artistas/álbumes con SQL (`GROUP BY`/conteo) — sin cargar toda la biblioteca ni hacer N+1 desde UI.
+- `ArtistSummary`/`AlbumSummary` en Domain (Kotlin puro); el valor NULL (desconocido) se modela explícitamente, sin sustituirlo por cadenas mágicas en la base de datos.
+- Eliminación: `deleteSong(uri)` YA existe (borra el registro Room); el borrado físico del archivo NO se implementa en FASE 8 (requeriría ContentResolver.delete con confirmación — acción separada, futura, con aprobación).
+
+## D8.4 Compromisos con FASE 9/10 (sin implementar)
+
+- Reproducción: la UI llamará a un `PlayerController` (interfaz de FASE 9) — en 8.6 queda como callback no operativa claramente marcado; nada de Media3 en el classpath.
+- Playlists: `Song`/`.uri` usado como identidad compartida (PK de `songs`) es compatible con la futura tabla de unión `playlist_songs(songUri, ...)`.
+- Prueba de migración instrumentada (RoomMigrationTestHelper) sigue pendiente por falta de emulador; la validación JVM re-open con datos previos cubre el caso feliz.
+
+---
+
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)
 
 - [ ] Confirmar `minSdk` exacto (propuesta: 26) — FASE 3.
