@@ -1,5 +1,7 @@
 ﻿package com.example.mimusica.domain.importing
 
+import com.example.mimusica.domain.model.AlbumSummary
+import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.repository.SongRepository
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +51,21 @@ class ImportAudioUseCaseTest {
         }
 
         override fun observeLibrary(): Flow<List<Song>> = flowOf(stored.toList())
+
+        override fun observeRecentSongs(limit: Int): Flow<List<Song>> =
+            flowOf(stored.sortedByDescending { it.dateAddedMs }.take(limit))
+
+        override suspend fun getSongsByArtist(artist: String?): List<Song> =
+            stored.filter { it.artist == artist }
+
+        override suspend fun getSongsByAlbum(album: String?): List<Song> =
+            stored.filter { it.album == album }
+
+        override fun observeArtistSummaries(): Flow<List<ArtistSummary>> =
+            flowOf(stored.groupBy { it.artist }.map { (name, songs) -> ArtistSummary(name, songs.size) })
+
+        override fun observeAlbumSummaries(): Flow<List<AlbumSummary>> =
+            flowOf(stored.groupBy { it.album }.map { (name, songs) -> AlbumSummary(name, songs.size) })
     }
 
     /** Fake de Data: devuelve los PreparedAudio definidos en cada test. */

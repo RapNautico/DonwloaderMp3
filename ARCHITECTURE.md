@@ -728,6 +728,8 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 ## D8.3 Consultas y repositorio
 
 - Agrupados de artistas/álbumes con SQL (`GROUP BY`/conteo) — sin cargar toda la biblioteca ni hacer N+1 desde UI.
+- **Comportamiento REAL del LIKE (decisión 8.2):** la búsqueda incluye título, artista y álbum; `%` y `_` de la consulta del usuario son **TEXTO LITERAL** (escapados con `ESCAPE '\'` en `SongRepositoryImpl.escapeLikePattern`, único punto de la política); la insensibilidad de mayúsculas es la REAL de SQLite (solo ASCII; las tildes NO se pliegan — el folding de acentos, si la UI lo desea, se decide en 8.3 a nivel de consulta del usuario, nunca en la BD). Búsqueda vacía (tras trim) = biblioteca completa vía consulta dedicada. Orden secundario SIEMPRE por `uri` para resultados equivalentes estables.
+- **Orden en presencia de NULL**: en los listados de un álbum/artista, SQLite ordena `NULL < texto` (comportamiento real, asertado). En `ArtistSummary`/`AlbumSummary` el bucket desconocido se ordena AL FINAL con `CASE WHEN`.
 - `ArtistSummary`/`AlbumSummary` en Domain (Kotlin puro); el valor NULL (desconocido) se modela explícitamente, sin sustituirlo por cadenas mágicas en la base de datos.
 - Eliminación: `deleteSong(uri)` YA existe (borra el registro Room); el borrado físico del archivo NO se implementa en FASE 8 (requeriría ContentResolver.delete con confirmación — acción separada, futura, con aprobación).
 
