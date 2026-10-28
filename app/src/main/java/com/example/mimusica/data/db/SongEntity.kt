@@ -27,4 +27,7 @@ data class SongEntity(
     val mimeType: String? = null,
     val sizeBytes: Long? = null,
     val bitrateBps: Long? = null,
+    val sampleRateHz: Int? = null,
+    val channels: Int? = null,
+    val artworkPath: String? = null,
 )

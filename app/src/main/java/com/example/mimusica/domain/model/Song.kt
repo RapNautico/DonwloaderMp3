@@ -21,4 +21,12 @@ data class Song(
     val mimeType: String? = null,
     val sizeBytes: Long? = null,
     val bitrateBps: Long? = null,
+    val sampleRateHz: Int? = null,
+    val channels: Int? = null,
+    /**
+     * Copia local de la portada (filesDir/artwork), si el archivo la traía.
+     * Se copia una sola vez y estática: no depende de la vigencia del permiso
+     * SAF de la URI original. null = sin portada (mostrar placeholder).
+     */
+    val artworkPath: String? = null,
 )

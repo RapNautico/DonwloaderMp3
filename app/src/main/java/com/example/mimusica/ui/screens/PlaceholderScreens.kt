@@ -35,9 +35,6 @@ fun PlaceholderScreen(titleRes: Int) {
 }
 
 @Composable
-fun LibraryScreen() = PlaceholderScreen(R.string.library)
-
-@Composable
 fun PlaylistsScreen() = PlaceholderScreen(R.string.playlists)
 
 @Composable

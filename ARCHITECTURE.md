@@ -587,6 +587,21 @@ No se requiere desinstalar ni modificar ninguna instalación Java existente.
 
 ---
 
+# 22.8 IMPORTACIÓN DE AUDIO LOCAL — SAF + Room (FASE 5, verificada 2026-10-27)
+
+- **Selección**: `ActivityResultContracts.OpenMultipleDocuments(arrayOf("audio/*"))` vía SAF. Ningún permiso de almacenamiento amplio (mínimo privilegio). Cancelar (uris vacías) es un no-op.
+- **Permisos persistibles**: `takePersistableUriPermission(uri, FLAG_GRANT_READ)` se invoca en el callback del launcher (actividad todavía activa). `SecurityException` ignorada por proveedores sin persistencia (documentación oficial: el permiso es una petición, no un derecho). Límite del sistema ~128 (API<31)/512 (31+).
+- **Identidad/deduplicación**: PRIMARY KEY Room = URI del contenido; `addSongs` devuelve el número de filas NUEVAS (rowid>=0) para el informe (añadidas vs ya existentes).
+- **Validación de formato**: el MIME REAL de la pista se lee con `MediaExtractor` (no la extensión ni el mime del documento) y se clasifica con `AudioFormat` (MP3/M4A/AAC/FLAC/WAV/OGG/OPUS). Sin pista de audio reconocible → `UNSUPPORTED_FORMAT` y el resto del lote continúa.
+- **Metadatos**: `MediaMetadataRetriever` (título/artista/álbum/duración/bitrate/portada) + extractor (media mime, sampleRate, canales). null = desconocido. Fallback título: retriever → displayName → `"Audio sin título"` (constante documentada).
+- **Errores de archivo `PreparedAudio(failure)` en tramos**: version manejo "per file" (SecurityException/FileNotFound → INACCESSIBLE; IO/IllegalState → UNREADABLE; guardia de tamaño 512 MB consultada ANTES de leer → TOO_LARGE); el app nunca cierra por un archivo defectuoso.
+- **Artwork**: copia única atómica a `filesDir/artwork/{md5(uri)}-v{n}.jpg|png|img` (`ArtworkStore`); no depende del permiso SAF; no decodifica Bitmap en importación; UI muestra placeholder (patrón del Design System) mientras tanto.
+- **Concurrencia**: lecturas en `Dispatchers.IO`; `LibraryViewModel` con `StateFlow` (`ImportState.Idle/Running(current,total)/Done(report)/Failed`) y `Mutex` para evitar importaciones concurrentes.
+- **Room v2**: `MIGRATION_1_2` con `suspend fun migrate(connection: SQLiteConnection)` y `connection.prepare(sql).use{ it.step() }` (API verificada en androidx.sqlite 2.7.1 — NO existe `execSQL` en el KMP `SQLiteConnection`). Esquemas v1/v2 exportados a `app/schemas`.
+- **Tests JVM**: 19 (ver PLAN FASE 5). Los siguientes quedan pendientes por falta de entorno Android: picker UI, permisos persistibles con proveedores reales, lectura de archivos reales, test de migración 1→2 con `room3-testing`.
+
+---
+
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)
 
 - [ ] Confirmar `minSdk` exacto (propuesta: 26) — FASE 3.

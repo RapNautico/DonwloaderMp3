@@ -14,4 +14,12 @@
     <string name="section_not_available_title">Sección en construcción</string>
     <string name="section_not_available_description">Esta pantalla se implementará en fases siguientes del proyecto (ver PLAN.md).</string>
     <string name="player_fullscreen">Reproductor</string>
+    <string name="library_add_music">Añadir música</string>
+    <string name="library_empty_title">Tu biblioteca está vacía</string>
+    <string name="library_empty_description">Selecciona archivos de audio de tu dispositivo para añadirlos a tu biblioteca local.</string>
+    <string name="library_unknown_artist">Artista desconocido</string>
+    <string name="library_importing_progress">Importando música… %1$d de %2$d</string>
+    <string name="library_import_done">%1$d canciones añadidas</string>
+    <string name="library_import_duplicates">%1$d canciones ya estaban en la biblioteca</string>
+    <string name="library_import_partially_failed">No se pudieron importar %1$d archivos.</string>
 </resources>

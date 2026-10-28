@@ -208,16 +208,33 @@ Pendiente dentro de la fase: connectar el repositorio a UI cuando la biblioteca 
 
 ---
 
-# FASE 5 — ALMACENAMIENTO
+# FASE 5 — IMPORTACIÓN Y DESCUBRIMIENTO DE AUDIO LOCAL
 
-Estado: ⬜ Pendiente
+Estado: 🟢 Implementada y verificada (2026-10-27): `assembleDebug` → BUILD SUCCESSFUL; `testDebugUnitTest` → 19/19 tests OK (0 fallos). Verificación en dispositivo/emulador PENDIENTE (sin hipervisor).
 
-- [ ] Integrar MediaStore.
-- [ ] Gestión de URI.
-- [ ] Nombres de archivos.
-- [ ] Detección de archivos eliminados.
-- [ ] Control de espacio.
-- [ ] Archivos temporales.
+Implementado (requisitos §1-§11):
+
+- [x] Selección SAF: `ActivityResultContracts.OpenMultipleDocuments` con `audio/*` (sin permisos de almacenamiento amplios; mínimo privilegio). Cancelar no produce errores (URIs vacías se ignoran).
+- [x] Permisos persistibles: `takePersistableUriPermission` se pide en el callback del picker (actividad viva); `SecurityException` (provedor sin persistencia) se ignora y se documenta: Room conserva metadatos; la portada ya está copiada a filesDir.
+- [x] Formatos: MP3, AAC, M4A, FLAC, WAV, OGG, OPUS (`domain/model/AudioFormat.kt`). Validación por el MIME REAL de la pista (MediaExtractor), nunca solo por extensión. Filetypes no soportados → reject + mensaje + el resto del lote continúa.
+- [x] Metadatos REALES: MediaMetadataRetriever (título/artista/álbum/duración/bitrate/portada) + MediaExtractor (mime, sampleRate, canales). null = desconocido. Fallback del título: retriever → displayName → "Audio sin título" (documentado).
+- [x] Duplicados: PK Room = URI (FASE 4); el informe distingue "añadidas" vs "ya estaban".
+- [x] Persistencia de portada: copia única atómica a `filesDir/artwork/` (hash MD5 uri+vsize); sin depender del permiso; sin decodificar Bitmap en importación; placeholder mientras no exista.
+- [x] Arquitectura: Presentation → Domain → Data: `ImportAudioUseCase` (Domain, puro) + `LocalAudioImporter` (interfaz Domain con `PreparedAudio`/`ImportFailureReason`/`ImportReport`) + impl `SafAudioImporter` y `AudioMetadataReader`/`ArtworkStore` (Data). La UI no ve el DAO.
+- [x] UI Library real: `LibraryScreen` (lista con portada placeholder/artwork, duración, artista·álbum), EmptyState con CTA "Añadir música", banner de progreso "Importando 3 de 8", banner resultado "N añadidas / ya estaban / no se pudieron importar M".
+- [x] Concurrencia: lecturas en `Dispatchers.IO`; estado de importación vía StateFlow (`ImportState.Idle|Running|Done|Failed`); `Mutex` impide importaciones concurrentes (las segundas se ignoran).
+- [x] Seguridad §10: URI inválida/sin scheme, archivo inexistente, permiso revocado, sin pista de audio, IOException, guardia de tamaño (512 MB, `TOO_LARGE`): jamás cierra la app, siempre continúa el lote.
+- [x] Tests JVM ejecutados (19):
+  - `SongRepositoryTest` (Room, JVM con BundledSQLiteDriver, sin Robolectric): 9 — insert/get/null/ duplicado/ update/ delete/ búsqueda título+artista/ Flow/ persistencia (más verificación del conteo de nuevas).
+  - `AudioFormatTest`: 3 — formatos mínimos, mimes con parámetros, no-audio/unknown → null.
+  - `ImportAudioUseCaseTest`: 7 — válido, no compatible, metadata incompleta (nulls), duplicado reimport, lote múltiple con progreso, fallo sin detener el lote, URIs pasadas tal cual.
+- [x] Room v1→v2: migración suspend con `SQLiteConnection.prepare/step` (3 columnas nuevas); esquema v2 exportado a `app/schemas`. ADVERTENCIA: aún no hay test de migración 1→2 (requiere room3-testing con driver, pendiente validación con dispositivo). NO existe migración 2→3 aún — el esquema v1 se exporta como archivo JSON para referencia.
+
+Límites conocidos:
+
+- NO probado en dispositivo real (sin emulador): comportamiento del picker, permisos persistibles con proveedores reales, archivos reales MP3/FLAC/etc.
+- El artwork NO se muestra aún en la lista (placeholder del design system); la copia está lista para el jugador/miniaturas de FASE 10.
+- Bitrate real vía MediaMetadataRetriever puede no informarlo todo proveedor: queda null y la UI no muestra nada (AGENTS §8).
 
 ---
 
@@ -371,31 +388,11 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 3 — Compilación real verificada.
+FASE 5 — Importación local (SAF + metadatos reales + Room) implementada y verificada en JVM: `assembleDebug` → BUILD SUCCESSFUL; `testDebugUnitTest` → 19/19 OK. Prueba en dispositivo/emulador PENDIENTE.
 
 Último cambio:
 
-FASE 3 — Verificación final completa (2026-10-27):
-- `gradlew.bat --version`: Gradle 9.6.0, Launcher/Daemon JVM = JBR OpenJDK 25.0.3 (`C:\Program Files\Android\Android Studio\jbr`).
-- `gradlew.bat assembleDebug` → **BUILD SUCCESSFUL** (segunda pasada, 36 tareas up-to-date tras la primera compilación de 3m48s).
--`:app:testDebugUnitTest` → NO-SOURCE (no hay tests unitarios todavía; correcto en esta fase).
-- Versiones realmente en uso (fuentes oficiales consultadas el 2026-10-27 en developer.android.com):
-  - AGP: **9.4.0** (requiere Gradle ≥ 9.6.0, JDK ≥ 17, soporta hasta API 37 — coincide con el SDK instalado).
-  - Gradle: **9.6.0** (wrapper, `distributionUrl=gradle-9.6.0-bin.zip`).
-  - Kotlin: **integrado en AGP 9.x** (built-in Kotlin; KGP interno ≥ 2.2.10; NO se aplica `kotlin-android`). `gradle.bat --version` reporta Kotlin 2.3.21 para el propio Gradle (Groovy DSL del wrapper, distinto del KGP del proyecto).
-  - Compose Compiler plugin: `org.jetbrains.kotlin.plugin.compose` versión **2.2.10** (alineado con el KGP mínimo requerido por AGP 9.0; fuente: "Migrate to built-in Kotlin" + "Setup Compose dependencies and compiler" en developer.android.com).
-  - Compose BOM: **2026.09.00** (recomendación vigente; exige compileSdk 37 + AGP 9 — verificado en la misma fuente).
-  - `compileSdk = 37`, `targetSdk = 36` (explícito, conservador), `minSdk = 26` (propuesto, sujeto a validación).
-- APK debug EXISTE: `H:\Proyectos code\Donwloader\app\build\outputs\apk\debug\app-debug.apk` (18.86 MB).
-- `.gitignore` verificado: excluye `build/`, `local.properties`, APKs, keystores y secretos; conserva `gradle/wrapper/gradle-wrapper.jar` (negación explícita) y el código fuente.
-- Emulador: SIGUE no disponible — el hipervisor de aceleración no está instalado; queda PENDIENTE (no se instalaron drivers ni se modificó Windows/BIOS). Alternativa: conectar un dispositivo físico para instalar/apertura del APK.
-
-Errores encontrados y corregidos durante la fase (compilaciones fallidas previas):
-1. `stringResource` usado dentro de bloque `semantics {}` no-composable (EmptyState/MiniPlayer) → se resolvió el string fuera del bloque.
-2. `Column` sin importar e import de `Color.Transparent` inexistente en HomeScreen → imports corregidos a `Column`/`Color.Transparent`.
-3. Icono `QueueMusic` deprecado → reemplazado por `Icons.AutoMirrored.Filled.QueueMusic`.
-
-Estado: la base COMPILA y el APK existe. FASE 3 marcada como completada con la salvedad documentada: la instalación/ejecución en emulador queda pendiente por falta de aceleración (requiere decisión del usuario).
+FASE 5 — Nuevos componentes: `domain/importing` (LocalAudioImporter/PreparedAudio/ImportFailureReason/ImportReport/ImportAudioUseCase), `domain/model/AudioFormat.kt` (MP3/M4A/AAC/FLAC/WAV/OGG/OPUS por MIME real), Data: `AudioMetadataReader` (MediaExtractor+MediaMetadataRetriever), `ArtworkStore` (copia atómica a filesDir), `SafAudioImporter`; UI: `LibraryScreen` real con LibraryViewModel (import con progreso/resultados/Mutex); DI con viewModelFactory + takePersistableUriPermission; Room v2 (nuevas columnas sampleRateHz/channels/artworkPath con Migration suspend prepare/step). Tests 19/19.
 
 ---
 

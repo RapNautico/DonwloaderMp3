@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room3.Database
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
+import androidx.room3.migration.Migration
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.SQLiteConnection
 
 /**
  * Base de datos local (FASE 4). Versión 1: esquema inicial (exportado a /schemas
@@ -15,7 +17,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
  */
 @Database(
     entities = [SongEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,10 +26,24 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME = "mimusica.db"
 
+        /** v1 → v2 (FASE 5): campos de metadatos reales y portada. */
+        private val MIGRATION_1_2 = object : Migration(startVersion = 1, endVersion = 2) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                listOf(
+                    "ALTER TABLE songs ADD COLUMN sampleRateHz INTEGER",
+                    "ALTER TABLE songs ADD COLUMN channels INTEGER",
+                    "ALTER TABLE songs ADD COLUMN artworkPath TEXT",
+                ).forEach { sql ->
+                    connection.prepare(sql).use { statement -> statement.step() }
+                }
+            }
+        }
+
         /** Instancia de producción o pruebas, basada en archivo en disco. */
         fun build(path: String): AppDatabase =
             Room.databaseBuilder<AppDatabase>(name = path)
                 .setDriver(BundledSQLiteDriver())
+                .addMigrations(MIGRATION_1_2)
                 .build()
 
         /** Conveniencia para producción con el path estándar de la app. */

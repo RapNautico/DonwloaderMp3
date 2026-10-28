@@ -82,9 +82,12 @@ class SongRepositoryTest {
     @Test
     fun insertar_el_mismo_archivo_dos_veces_no_duplica_filas() = runBlocking {
         val s = song(uri = "content://media/external/audio/2")
-        repository.addSongs(listOf(s))
+        val firstInsert = repository.addSongs(listOf(s))
         // Re-import: URI repetida (IGNORE conserva la fila original).
-        repository.addSongs(listOf(s.copy(title = "Título modificado")))
+        val secondInsert = repository.addSongs(listOf(s.copy(title = "Título modificado")))
+
+        assertEquals(1, firstInsert)
+        assertEquals(0, secondInsert)
 
         val library = repository.observeLibrary().first()
         assertEquals(1, library.size)
@@ -101,7 +104,15 @@ class SongRepositoryTest {
         )
 
         val loaded = repository.getSong(s.uri)!!
-        assertEquals(s.copy(artist = "Otro artista", album = null, bitrateBps = null), loaded)
+        assertEquals(
+            s.copy(
+                artist = "Otro artista",
+                album = null,
+                bitrateBps = null,
+                // Campos nuevos de FASE 5 quedan null cuando no vienen del origen.
+            ),
+            loaded,
+        )
     }
 
     @Test

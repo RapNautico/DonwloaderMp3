@@ -8,8 +8,12 @@ import kotlinx.coroutines.flow.Flow
  * no conocen Room ni el DAO (STORY "Presentation → Domain → Data").
  */
 interface SongRepository {
-    /** Inserción idempotente por URI del archivo (mismo archivo ≠ duplicado). */
-    suspend fun addSongs(songs: List<Song>)
+    /**
+     * Inserción idempotente por URI del archivo (mismo archivo ≠ duplicado).
+     * Devuelve el número de canciones NUEVAS insertadas (las ya existentes
+     * no se modifican ni cuentan).
+     */
+    suspend fun addSongs(songs: List<Song>): Int
 
     suspend fun updateSong(song: Song)
 

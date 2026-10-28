@@ -17,9 +17,8 @@ class SongRepositoryImpl(
     private val dao: SongDao,
 ) : SongRepository {
 
-    override suspend fun addSongs(songs: List<Song>) {
-        dao.insertAll(songs.map { it.toEntity() })
-    }
+    override suspend fun addSongs(songs: List<Song>): Int =
+        dao.insertAll(songs.map { it.toEntity() }).count { rowId -> rowId >= 0 }
 
     override suspend fun updateSong(song: Song) {
         dao.update(song.toEntity())

@@ -30,7 +30,6 @@ import com.example.mimusica.ui.screens.HomeScreen
 import com.example.mimusica.ui.screens.LibraryScreen
 import com.example.mimusica.ui.screens.PlaylistsScreen
 import com.example.mimusica.ui.screens.SettingsScreen
-
 private data class TopLevelDestination(
     val route: String,
     val labelRes: Int,
