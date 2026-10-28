@@ -240,15 +240,19 @@ Límites conocidos:
 
 # FASE 6 — ANALIZADOR DE FUENTES
 
-Estado: ⬜ Pendiente
+Estado: 🟡 Análisis completado (2026-10-27), sin implementación — esperando aprobación del usuario para FASE 7.
 
-- [ ] Validación de URL.
-- [ ] Arquitectura de providers.
-- [ ] Modelo de metadata.
-- [ ] Manejo de errores.
-- [ ] Estados de análisis.
+Entregado (documentación, sin código):
 
-Las fuentes utilizadas deben permitir la descarga del contenido.
+- [x] Matriz de capacidades por fuente en ARCHITECTURE.md §22.9: proveedor/tipo, API oficial, operaciones autorizadas, restricciones, autenticación, formatos/metadata, enlaces oficiales, viabilidad e incertidumbres.
+- [x] Fuentes verificadas con documentación oficial leída el 2026-10-27: Jamendo (API v3.0 docs + endpoint `/v3.0/tracks/file` con `audiodownload_allowed`), Internet Archive (portal developers), Wikimedia Commons (Commons:API), SoundCloud (API Terms of Use §05/§10: descarga PROHIBIDA).
+- [x] Fuentes clasificadas sin vía oficial de descarga: YouTube/YouTube Music y Spotify (solo metadata/reproducción; por re-verificar ToS exactos antes de FASE 7).
+- [x] Fuentes sin verificar marcadas como "Desconocida": Musopen, FMA, etc.
+- [x] Fuente local: SAF ya implementado (FASE 5); MediaStore identificado como complemento viable de alta viabilidad.
+- [x] Arquitectura futura PROPUESTA (no implementada): contrato `MusicSource` en Domain (search/metadata/capabilities/download) + `SourcePipeline` + implementaciones en Data + registro DI en AppContainer, sin acoplarse a la UI ni a Room.
+- [x] Cero cambios de código, dependencias o versiones en esta fase.
+
+Las fuentes utilizadas deben permitir la descarga del contenido: solo se integrarán fuentes con operación autorizada oficialmente (regla §22.2).
 
 ---
 
@@ -388,11 +392,11 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 5 — Importación local (SAF + metadatos reales + Room) implementada y verificada en JVM: `assembleDebug` → BUILD SUCCESSFUL; `testDebugUnitTest` → 19/19 OK. Prueba en dispositivo/emulador PENDIENTE.
+FASE 6 — Análisis de fuentes COMPLETADO (documentación: matriz en ARCHITECTURE.md §22.9 + arquitectura futura propuesta). Sin implementación; esperando aprobación del usuario antes de FASE 7 (descargas solo de fuentes con vía oficial). FASE 5 verificada: `assembleDebug` BUILD SUCCESSFUL, `testDebugUnitTest` 19/19 OK; prueba en dispositivo/emulador PENDIENTE.
 
 Último cambio:
 
-FASE 5 — Nuevos componentes: `domain/importing` (LocalAudioImporter/PreparedAudio/ImportFailureReason/ImportReport/ImportAudioUseCase), `domain/model/AudioFormat.kt` (MP3/M4A/AAC/FLAC/WAV/OGG/OPUS por MIME real), Data: `AudioMetadataReader` (MediaExtractor+MediaMetadataRetriever), `ArtworkStore` (copia atómica a filesDir), `SafAudioImporter`; UI: `LibraryScreen` real con LibraryViewModel (import con progreso/resultados/Mutex); DI con viewModelFactory + takePersistableUriPermission; Room v2 (nuevas columnas sampleRateHz/channels/artworkPath con Migration suspend prepare/step). Tests 19/19.
+FASE 6 — Solo documentación: ARCHITECTURE.md §22.9 (matriz de capacidades: SAF/MediaStore/Jamendo/Internet Archive/Wikimedia/SoundCloud/YouTube/Spotify/Musopen-FMA con operaciones autorizadas, restricciones, auth, formatos, enlaces oficiales consultados 2026-10-27, viabilidad e incertidumbres) y propuesta de arquitectura futura `MusicSource` (Domain: search/metadata/capabilities/download; Data: implementaciones por fuente; registro DI; sin new dependencies). PLAN.md FASE 6 actualizado.
 
 ---
 

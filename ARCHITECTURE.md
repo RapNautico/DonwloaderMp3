@@ -602,6 +602,59 @@ No se requiere desinstalar ni modificar ninguna instalación Java existente.
 
 ---
 
+# 22.9 FUENTES DE AUDIO — MATRIZ DE CAPACIDADES (FASE 6: análisis, sin implementación)
+
+Objetivo: decidir QUÉ fuentes pueden integrarse y con qué operaciones autorizadas, ANTES de diseñar descargas (FASE 7). Regla §22.2: solo se integrará una fuente si el proveedor autoriza oficialmente la operación; no se implementará ninguna vía no declarada.
+
+Verificación: enlaces consultados el 2026-10-27 salvo indicación "por re-verificar".
+
+## Matriz
+
+| Fuente / tipo | API o mecanismo oficial | Operaciones autorizadas | Restricciones relevantes | Autenticación | Formatos/metadata disponible | Enlace oficial | Viabilidad | Incertidumbres |
+|---|---|---|---|---|---|---|---|---|
+| **Archivos locales (SAF)** — base del proyecto | Storage Access Framework: `OpenMultipleDocuments`, `takePersistableUriPermission` | Leer metadatos; copiar bytes (incluida portada) hacia el app a petición del usuario | Límite ~128/512 permisos persistibles; algunos proveedores no conceden persistencia | Ninguna (grant por URI, seguro) | Título/artista/álbum/duración/bitrate/portada/samplerate/canales vía MediaExtractor+MediaMetadataRetriever | developer.android.com/training/data-storage; developer.android.com/kotlin/multiplatform/room | ✅ YA IMPLEMENTADO (FASE 5) | Comportamiento por proveedor de documentos varía |
+| Medios locales indexados (MediaStore) | `MediaStore.Audio.Media.CONTENT_URI` (query con ContentResolver) | Consultar biblioteca del dispositivo, metadatos y URIs | Solo lectura de metadatos existentes; no duplicar datos sensibles | Ninguna (audio es público vía MediaStore en API 29+) | Título/artista/álbum/duración/mime/tamaño; portada vía embedded | developer.android.com/training/data-storage/shared/media (por confirmar propuesta exacta en pruebas de dispositivo) | ✅ Alta (complementa SAF; buena UX sin picker por archivo) | Requiere prueba en dispositivo real |
+| **Internet Archive** | API oficial: Metadata (developer portal) + archivos con URLs directas por ítem | Buscar ítems/metadata; descargar archivos Public Domain / CC conforme a licencia por archivo | Las licencias varían por archivo: hay que verificar el campo `license` por fichero; ciertos items están marcados "do not use" | Anónima para lectura (S3 keys solo para subir) | mp3/ogg/flac, covers y tags en la metadata del ítem (developer portal: "Item"/"Metadata") | archive.org/developers/index.html (portal leído 2026-10-27) | ✅ Alta (dominio público/CC; gratuita) | Rate limits no documentados por leer; endpoint de búsqueda (search API) por verificar |
+| **Jamendo** | API REST oficial v3.0 con `client_id` | Búsqueda/metadata; **descarga vía `/v3.0/tracks/file`** (redirect) SOLO si `audiodownload_allowed=true` por pista (404 si false) | Uso no-comercial: 35.000 req/mes; atribución requerida (API TOU); términos a aceptar en devportal | client_id (app) / OAuth2 solo para métodos de usuario | mp31(96 kbps)/mp32(VBR)/ogg/flac + metadata (artista, álbum, cover, licencia) | developer.jamendo.com/v3.0/docs; developer.jamendo.com/v3.0/tracks/file (leídos 2026-10-27) | ✅ Alta (descarga expresamente autorizada con flag) | Cómo mostrar cada licencia CC en la app; política de atribución (texto visible) |
+| **Wikimedia Commons** | MediaWiki API (`commons.wikimedia.org/w/api.php`, autodocumentada) | Consultar archivos de audio de libre acceso (CC/PD) y su metadata/licencia | Archivos con tag "do not use" no se indexarán ni usarán; atribución necesaria | Ninguna para lectura | MIME real vía API de fichero, tamaño, licencia, artistas | commons.wikimedia.org/wiki/Commons:API (leído 2026-10-27) | ⚠️ Media (catálogo disperso; descubrimiento musical limitado) | Endpoint de búsqueda de audio; filtro de licencias |
+| **SoundCloud** | API oficial v2 (client_id; OAuth para acciones de usuario) | Búsqueda/metadata; reproducción con player/SDK oficial. **Descarga: PROHIBIDA** por API TOU §05 ("must not include file-save functionality", sin offline) y §10 (no stream ripping) | Caching solo de sesión; sin descargas aunque el uploader active el botón de "download"; sin acceso al contenido Go/privado | client_id; OAuth2 para acciones de usuario | Metadata rica (título/artista/cover); URLs de stream protegidas de captura | developers.soundcloud.com/docs/api/terms-of-use (leído 2026-10-27) | ❌ Solo streaming; NO como fuente de descargas | Endpoint de búsqueda estable en API v2; reproducción en streaming en FASE 10 |
+| **YouTube / YouTube Music** | IFrame/Embedded Player API; YouTube Data API (solo metadata) | Reproducción via player oficial; metadata y búsqueda con API | Los TOS de YouTube **prohíben descargar** fuera del reproductor/API de YouTube; "stream ripping" prohibido | OAuth2/clave Data API del usuario conectado | Metadata, thumbnail, títulos vía Data API v3; audio SIN vía legítima de descarga | youtube.com/static?template=terms; developers.google.com/youtube/terms (por re-verificar al redactar FASE 7) | ❌ NO integrable como descarga (viola la regla §22.2) | Sin vía oficial prevista por Google |
+| **Spotify** | Web API (metadata/playlists) + Android playback SDK | Metadata y búsquedas; reproducción vía Spotify App Remote (si el usuario tiene cuenta) | No ofrecer descargas/offline de contenido Spotify; caching solo técnico temporal | OAuth2 (token de usuario) | Metadata (título/artista/album/duración); previews 30 s OGG | developer.spotify.com/documentation (por re-verificar en la fase correspondiente) | ❌ NO descargable; solo metadata; posible reproducción remota en FASE 10 si aporta valor |
+| APIs de dominio público (Musopen, FMA, etc.) | Verificación pendiente por proveedor | Desconocida hasta verificar | — | — | — | — | ⬜ Por verificar | Estado del servicio (FMA se relanzó tras cerrar), API/cuotas, formatos |
+
+Ninguna fuente implica: bypass de DRM, evasión de autenticación, paywall o servicios no autorizados (AGENTS §12; regla §22.2 del proyecto).
+
+## Arquitectura futura propuesta (NO implementar en esta fase)
+
+Diseño compatible con Presentation→Domain→Data y sin acoplarse a la UI ni a Room:
+
+```text
+Presentation (Ajustes/Descargas/Buscar)
+        ↓ usa interfaces
+Domain:
+  MusicSource          ← contrato por fuente (interface en com.example.mimusica.domain.source)
+    ├── search(query): List<TrackReference>
+    ├── metadata(ref): SourceMetadata      (cc/licencia,duration, cover, formato)
+    ├── capabilities(): SourceCapabilities { canSearch, canStream, canDownload, licensing… }
+    └── download(ref): Stream<File/DaoType>  SOLO si capabilities.canDownload
+  SourcePipeline       ← orquestación neutra: DownloadRequest → progress → Result
+Data:
+  impl/… (JamendoSource, ArchiveOrgSource, MediaStoreSource…)
+  todo lo específico vive en Data; Domain solo contratos y modelos
+  Room persiste TrackReference + resultado de descarga vía SongRepository existente
+DI: AppContainer registra sources activos; la UI no sabe cuál está detrás.
+```
+
+Reglas del diseño: si una fuente no puede descargar, `capabilities.canDownload=false` y la UI no ofrece la acción (nada de botones de mentira); cada fuente declara su licencia/atribución; las fuentes se registran o se desactivan por completo en el `AppContainer`, sin tocar Room ni la UI (plug-in por registro de DI).
+
+## Próximas verificaciones necesarias (antes de FASE 7)
+
+1. Términos oficiales exactos de YouTube/Spotify (requieren revisión en detalle al redactar FASE 7).
+2. Rate limits y ToU completos de Jamendo/IA con un client_id registrado en devportal.
+3. Probar integralmente por-device MediaStore en dispositivo real.
+
+---
+
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)
 
 - [ ] Confirmar `minSdk` exacto (propuesta: 26) — FASE 3.
@@ -657,7 +710,7 @@ Análisis realizado el 2026-10-27. No se implementó ningún código.
 
 - Kotlin: no detectado como herramienta independiente. Se establecerá mediante el plugin de Kotlin en la configuración Gradle del proyecto cuando se cree (FASE 3). No inventar el número antes de la resolución oficial de dependencias.
 - Gradle: no está instalado globalmente. El proyecto usará Gradle Wrapper (`gradlew`), cuya versión se fijará al crear el proyecto (el AGP recomendado lo define).
-- AGP: la instalación de Android Studio apunta internamente a componentes "aapt2-proto-8.1.0" (indicio del AGP 8.1.x en la distribución), pero la espinestra y versiones compatibles oficiales se definirán automáticamente al crear el proyecto. No fijar la versión a mano antes de eso.
+- AGP: la instalación de Android Studio apunta internamente a componentes "aapt2-proto-8.1.0" (indicio del AGP 8.1.x en la distribución), pero la estrategia y versiones compatibles oficiales se definirán automáticamente al crear el proyecto. No fijar la versión a mano antes de eso.
 - `aapt2.exe` versión 2.20-13193326 bajo build-tools 36.0.0.
 
 ## 23.4 Skills disponibles
