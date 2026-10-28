@@ -655,6 +655,59 @@ Reglas del diseño: si una fuente no puede descargar, `capabilities.canDownload=
 
 ---
 
+# 22.10 PAUSA DE DESCARGAS Y ARQUITECTURAS PREVISTAS (2026-10-28)
+
+## Motivo de la pausa de FASE 7
+
+La FASE 7 queda PAUSADA tras completar la entrega 7.0 (contratos de dominio + pruebas, sin red ni Room). Se retomará más adelante tras evaluar, con calma y fuera de presión de entrega:
+
+1. **Motor HTTP**: HttpURLConnection (cero dependencias, ya incluido en el JDK/Android) vs OkHttp (dependencia nueva: justificar impacto APK, compatibilidad con AGP 9/Kotlin integrado y mantenimiento — regla de dependencias).
+2. **Ejecución en segundo plano**: WorkManager (descargas diferidas que sobreviven a reinicios; dependencia nueva) vs User-Initiated Data Transfer (APIs oficiales para transferencias iniciadas por el usuario) vs foreground service. NINGUNA dependencia añadida: estas son decisiones pendientes, no hechos comprobados.
+3. **NewPipe Extractor y extractores similares**: su uso exige primero evaluar licencia, condiciones de uso y la legalidad de cada proveedor objetivo. Regla fija de AGENTS §12/§22.2: sin bypass de DRM/autenticación/paywall; si un extractor solo funciona eludiendo controles del proveedor, la fuente se descarta.
+4. **Condiciones legales vigentes** de cada proveedor candidato (re-verificación obligatoria al retomar: la matriz §22.9 tiene fecha de lectura).
+
+## Lo construido y su compatibilidad futura
+
+- `domain/source/*` y `domain/download/*` son Kotlin puro, sin Android, sin Room y sin proveedores: la pausa NO los condiciona. El motor (7.2) y la persistencia de descargas (7.3) se montarán ENCIMA de estos contratos.
+- Integración con la biblioteca por el mismo camino que la importación local: `DownloadRequest` → archivo local validado reutilizando el lector real de FASE 5 (MediaExtractor) → `SongRepository.addSongs` (URI = fichero local; dedup por URI). Una canción descargada en el futuro será, para la biblioteca, indistinguible de una importada.
+
+## Arquitectura prevista del reproductor (FASE 9, sin decidir dependencias)
+
+```text
+UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 (candidato, pendiente de evaluación) → archivo local
+```
+
+- La UI transmite estado y actions; el control del reproductor queda en Data/service; Domain define el playback contract puro (cola incluida).
+- La cola de reproducción es independiente de `DownloadQueue` (7.0); solo comparten estilo FIFO/estados.
+- MediaSessionService de Media3 vs service propio: DECISIÓN PENDIENTE (depende de aprobar Media3).
+- Modo fondo/notificación/Bluetooth: diseño igual a §3.1; cualquier dependencia nueva se aprueba explícitamente.
+
+## Arquitectura prevista de playlists (FASE 10)
+
+```text
+Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de cada lista)
+```
+
+- Tablas `playlists` + `playlist_songs` con MIGRACIÓN Room (la versión exacta se asigna al implementar; hoy v2; la v3 pensada para descargas no se consumió y la numeración se resuelve entonces).
+- FK y ON DELETE (quitar canción de lista ≠ borrar canción) se deciden en FASE 10. Reproducir desde canción concreta = cola inicial construida desde esa posición.
+
+## Arquitectura prevista de ajustes (FASE 11)
+
+- Preferencias simples con DataStore candidato (dependencia nueva pendiente de aprobación; alternativa: hasta entonces, sin settings, nada).
+- Los ajustes afectados a FASE 8–9 (tema, orden, comportamiento de borrar, reanudación) leerán esas preferencias; ninguna opción decorativa sin implementación real.
+
+## Decisiones pendientes (bloqueantes de fases concretas)
+
+- Media3: aprobar dependencia (Fase 9). Alternativa sin API: plataforma propia no es viable a plazo razonable → la evaluación debe cubrir impacto APK y versiones compatibles.
+- WorkManager/UIDT: motores del pausado sistema de descargas (Fase 7).
+- OkHttp/HttpURLConnection: del motor de descarga pausado (Fase 7).
+- DataStore: para Fase 11 (alternativa: SharedPreferences/documents comunes ya disponibles, menos idiomática).
+- Comportamiento de eliminación de canción (quitar registro vs borrado físico confirmado): se consolidará en FASE 8 §8.3.
+- Almacenamiento final de descargas (app-privado vs MediaStore): Fase 7 al retomarla; FASE 8 no depende de esto.
+- minSdk/dynamic color y demás detalles de apariencia: al definir Fase 11 sobre lo ya implementado.
+
+---
+
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)
 
 - [ ] Confirmar `minSdk` exacto (propuesta: 26) — FASE 3.

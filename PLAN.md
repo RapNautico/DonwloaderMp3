@@ -258,92 +258,136 @@ Las fuentes utilizadas deben permitir la descarga del contenido: solo se integra
 
 # FASE 7 — DESCARGAS
 
-Estado: ⬜ Pendiente
+Estado: 🟡 PAUSADA (2026-10-28)
 
-- [ ] Download manager.
-- [ ] Cola.
-- [ ] Estados.
-- [ ] Progreso.
-- [ ] Cancelación.
-- [ ] Reintento.
-- [ ] Errores.
-- [ ] Background downloads.
-- [ ] Persistencia.
+Implementado y CONSERVADO (archivos de 7.0 aún sin trackear en git; listos para commit cuando el usuario lo ordene):
 
----
+- **7.0 — Contratos de dominio**, intactos y con sus 18 tests (37/37 JVM el 2026-10-27):
+  - `domain/source/`: `SourceCapabilities` (canSearch/canDownload/attributionText), `TrackReference` (con `downloadAllowed: Boolean?` por recurso: null = desconocido), `SourceMetadata` + `DownloadFormatSpec` (formatos declarados por la fuente), `evaluateDownloadAuthorization()` → `GRANTED|DENIED_BY_SOURCE|DENIED_BY_TRACK|UNKNOWN`.
+  - `domain/download/`: `DownloadState` (terminología de DESIGN §3.4; transiciones válidas explícitas; Completed/Failed/Cancelled terminales) y `DownloadQueue` (FIFO, máx. 2 concurrentes, cancelación pendiente/activo con confirmación de motor).
+- Decisión formalizada: la autorización de descarga se evalúa POR RECURSO; la capacidad general de una fuente NO habilita pistas concretas.
 
-# FASE 8 — PROCESAMIENTO DE AUDIO
+Razones de la pausa: el motor de descargas exige decidir antes, con evaluación seria: procesamiento local en Android, motor HTTP (HttpURLConnection vs OkHttp), ejecución en segundo plano (WorkManager / User-Initiated Data Transfer / foreground service), permisos y restricciones de Android, y aspectos legales/condiciones de cada proveedor (incluida NewPipe Extractor: licencia y condiciones requieren análisis propio antes de considerar su uso).
 
-Estado: ⬜ Pendiente
+Alternativas futuras a evaluar al RETOMAR la fase (nada decidido, sin dependencias introducidas):
 
-- [ ] Determinar formato fuente.
-- [ ] Determinar bitrate.
-- [ ] Selección de calidad.
-- [ ] Conversión cuando sea necesaria.
-- [ ] Metadatos.
-- [ ] Carátulas.
-- [ ] Archivos temporales.
+- Fuentes de vía oficial verificada (§22.9): Jamendo / Internet Archive / Wikimedia Commons — plan por entregas 7.0–7.6 ya redactado en la planificación de FASE 7.
+- Motor HTTP: HttpURLConnection (0 dependencias) vs OkHttp (dependencia: justificar APK/compatibilidad/mantenimiento).
+- Segundo plano: WorkManager vs UIDT vs foreground service — decisión pendiente; cualquier dependencia nueva requiere aprobación EXPLÍCITA del usuario.
+- Extractores tipo NewPipe Extractor: solo tras evaluar su licencia, sus condiciones de uso y la legalidad de cada proveedor objetivo. Sin bypass de DRM/autenticación (AGENTS §12).
 
-Evitar conversiones innecesarias.
+Al retomar: re-verificar la documentación oficial vigente de cada proveedor, reutilizar los contratos 7.0 tal cual, y continuar por la entrega 7.1 del plan por entregas aprobado.
 
 ---
 
-# FASE 9 — BIBLIOTECA
+# FASE 8 — BIBLIOTECA COMPLETA (próxima fase activa)
 
-Estado: ⬜ Pendiente
+Estado: ⬜ Pendiente (esperando autorización del usuario)
 
-- [ ] Lista de canciones.
-- [ ] Búsqueda.
-- [ ] Ordenamiento.
-- [ ] Filtros.
-- [ ] Eliminar canción.
-- [ ] Información.
-- [ ] Empty state.
+Objetivo: convertir la biblioteca de FASE 5 en la experiencia completa de gestión de música local, sin red (solo Room + archivos locales).
 
----
+## 8.1 Listado
 
-# FASE 10 — REPRODUCTOR
+- [ ] Lista/cuadrícula conmutables; artistas, álbumes; género SOLO si el archivo real lo informa (nunca inventado, AGENTS §8).
+- [ ] Recientes / añadidas recientemente (`dateAddedMs` ya persiste; `lastPlayedMs` solo cuando el Reproductor (9) lo escriba de verdad).
+- [ ] Ficha técnica por canción con datos REALES ya en Room v2: formato (mimeType), duración, tamaño, bitrate cuando exista (bitrateBps), sample rate (sampleRateHz), canales, artwork (artworkPath).
 
-Estado: ⬜ Pendiente
+## 8.2 Búsqueda local
 
-- [ ] Media3.
-- [ ] Player.
-- [ ] MediaSession.
-- [ ] Play/pause.
-- [ ] Seek.
-- [ ] Siguiente.
-- [ ] Anterior.
-- [ ] +10 segundos.
-- [ ] -10 segundos.
-- [ ] Cola.
-- [ ] Mini-player.
+- [ ] SOLO Room, sin red: título; artista/álbum/género según disponibilidad real.
+- [ ] Estados: resultados · sin resultados · consulta vacía · loading · error.
+- Base existente: `SongRepository.searchSongs` (ampliar solo si el requisito lo exige).
 
----
+## 8.3 Gestión de canciones
 
-# FASE 11 — BACKGROUND PLAYBACK
+- [ ] Por canción: reproducir (stub funcional hasta 9), añadir a playlist (hasta 10), información, localizar, ELIMINAR de la biblioteca.
+- [ ] DECISIÓN DOCUMENTADA: eliminar de la biblioteca NO borra físicamente el archivo por defecto; el borrado físico será una acción separada, explícita y confirmada (si se adopta otra política, se documenta aquí el cambio).
 
-Estado: ⬜ Pendiente
+## 8.4 Archivos inválidos / resiliencia
 
-- [ ] Foreground playback.
-- [ ] Notification.
-- [ ] MediaSession.
-- [ ] Lock screen controls.
-- [ ] Bluetooth.
-- [ ] Auriculares.
+- [ ] Archivo borrado externamente · URI revocada (permiso persistible perdido) · corrupto · metadatos incompletos · formato no soportado.
+- Mantener regla de FASE 5: no inventar metadatos; fallos por archivo sin detener el lote (patrón `ImportFailureReason`).
+
+Criterios de aceptación: `assembleDebug` OK; tests JVM (nuevos y los 37 existentes) OK; 0 dependencias nuevas previstas; pruebas de dispositivo siguen pendientes sin emulador.
 
 ---
 
-# FASE 12 — AJUSTES
+# FASE 9 — REPRODUCTOR
 
 Estado: ⬜ Pendiente
 
-- [ ] Calidad predeterminada.
-- [ ] Wi-Fi solamente.
-- [ ] Almacenamiento.
-- [ ] Tema.
-- [ ] Temporales.
-- [ ] Información de almacenamiento.
-- [ ] Acerca de.
+Objetivo: reproducción local completa. EVALUAR Media3/ExoPlayer ANTES de implementar: `androidx.media3` NO está en el classpath; agregarlo exige justificación (impacto APK, compatibilidad, mantenimiento) y tu aprobación explícita.
+
+Arquitectura obligatoria (la UI nunca controla el reproductor subyacente):
+
+```text
+UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 → archivo local
+```
+
+## 9.1 Reproducción
+
+- [ ] Play/pausa · anterior · siguiente · seek · ±10 s · duración · progreso · volumen.
+- [ ] Artwork real (copia de FASE 5) con placeholder del design system si no hay.
+
+## 9.2 Cola y modos
+
+- [ ] Cola de reproducción (INDEPENDIENTE de la cola de descargas de 7.0; solo concepción no compartida), shuffle, repeat, repeat-one, comportamiento al finalizar la cola.
+
+## 9.3 Fondo, sesión y energía
+
+- [ ] MediaSession · reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · pérdida de foco → pausa (ARCHITECTURE §3.1).
+- [ ] Recuperación de estado tras muerte del proceso (cola + posición).
+- Pendiente de decisión: MediaSessionService de Media3 vs servicio propio; documentado antes de implementar.
+
+Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel solo transmite estado; compilación y tests OK; instrumentadas pendientes si no hay dispositivo.
+
+---
+
+# FASE 10 — PLAYLISTS
+
+Estado: ⬜ Pendiente
+
+Modelo (m:n con orden independiente por lista):
+
+```text
+Playlist ──< PlaylistSong >── Song
+```
+
+- Room: tablas `playlists` y `playlist_songs` (playlistId, songUri, position): una canción en varias listas; una lista con muchas canciones; el orden es propio de cada lista.
+- Funciones: crear, renombrar, eliminar, añadir/quitar canciones, reordenar, reproducir la lista completa o desde una canción concreta, mostrar cantidad, artwork representativo (portada de la primera canción; nunca inventado).
+- Migración Room a la SIGUIENTE versión libre (esquema actual v2; la v3 planeada para descargas quedó pausada con su fase — aquí se usará la numeración que toque al implementar).
+- Diseñar antes de implementar; FK/ON DELETE y posicionamiento final se documentarán en ARCHITECTURE.md al implementar.
+
+---
+
+# FASE 11 — AJUSTES
+
+Estado: ⬜ Pendiente
+
+- Apariencia: Sistema · Claro · Oscuro · Dynamic Color (evaluar soporte real con el stack actual).
+- Biblioteca: orden predeterminado · vista lista/cuadrícula · comportamiento al eliminar (decisión 8.3) · actualización/escaneo.
+- Reproducción: reanudar última canción · reproducción automática · shuffle/repeat predeterminados · comportamiento al finalizar.
+- Audio: SOLO opciones realmente implementables — configuraciones ficticias prohibidas.
+- Almacenamiento: ubicación · espacio utilizado · archivos temporales · información.
+- Acerca de: versión · información de la app · licencias de terceros.
+- Preferencias sencillas: DataStore CUANDO CORRESPONDA (dependencia nueva → requiere justificación + aprobación explícita; sin añadir ahora).
+
+---
+
+# FASE 12 — INTEGRACIÓN FINAL
+
+Estado: ⬜ Pendiente
+
+Flujos extremo a extremo que deben funcionar:
+
+```text
+Importar (SAF) → Biblioteca → Reproducir → MiniPlayer → Player → Cola → Playlist
+Biblioteca → Añadir a playlist → Playlist → Reproducir → Player
+Settings → Preferencias → Aplicación
+```
+
+- Verificación de que los cambios de configuración afectan REALMENTE a la app (nada decorativo).
+- Criterio de compatibilidad con descargas futuras: una canción descargada debe entrar a la biblioteca por el mismo mecanismo que una importada (misma entidad `Song`, mismo `SongRepository.addSongs`); los contratos 7.0 ya apuntan ahí (`DownloadRequest` → archivo local → registro). Durante FASE 8–11 debe perderse ninguna capacidad ni acoplarse nada que impida conectar el motor de descargas después.
 
 ---
 
@@ -392,11 +436,21 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 6 — Análisis de fuentes COMPLETADO (documentación: matriz en ARCHITECTURE.md §22.9 + arquitectura futura propuesta). Sin implementación; esperando aprobación del usuario antes de FASE 7 (descargas solo de fuentes con vía oficial). FASE 5 verificada: `assembleDebug` BUILD SUCCESSFUL, `testDebugUnitTest` 19/19 OK; prueba en dispositivo/emulador PENDIENTE.
+FASE 7 (descargas) 🟡 PAUSADA por decisión del usuario (2026-10-28) tras completar la entrega 7.0 (contratos de dominio + 18 tests; 37/37 JVM OK y `assembleDebug` BUILD SUCCESSFUL el 2026-10-27). **Próxima fase activa: FASE 8 — Biblioteca completa** (pendiente de autorización). FASE 7.0: archivos `domain/source/` y `domain/download/` (y sus tests) SIN TRACKING en git todavía — conservados intactos, commit pendiente de tu orden.
 
 Último cambio:
 
-FASE 6 — Solo documentación: ARCHITECTURE.md §22.9 (matriz de capacidades: SAF/MediaStore/Jamendo/Internet Archive/Wikimedia/SoundCloud/YouTube/Spotify/Musopen-FMA con operaciones autorizadas, restricciones, auth, formatos, enlaces oficiales consultados 2026-10-27, viabilidad e incertidumbres) y propuesta de arquitectura futura `MusicSource` (Domain: search/metadata/capabilities/download; Data: implementaciones por fuente; registro DI; sin new dependencies). PLAN.md FASE 6 actualizado.
+FASE 7.0 (2026-10-27) — Contratos de dominio puros, sin Android, sin red, sin Room, 0 dependencias: `SourceCapabilities`, `TrackReference` (autorización POR recurso: `downloadAllowed`), `SourceMetadata`/`DownloadFormatSpec`, `evaluateDownloadAuthorization()`, `DownloadState` (transiciones válidas explícitas, terminales sin salida) y `DownloadQueue` (FIFO máx. 2, cancelación, sin reenqueue de terminadas). 18 tests nuevos. `DownloadEngine` y `DownloadRepository` NO creados: se posponen a 7.2/7.3 por no inventarse decisiones ya tomadas (motor HTTP y persistencia).
+
+Roadmap replanificado (2026-10-28):
+
+- FASE 7 — DESCARGAS: 🟡 PAUSADA (retomar tras evaluar motor HTTP, segundo plano WorkManager/UIDT, NewPipe Extractor y condiciones legales).
+- FASE 8 — BIBLIOTECA COMPLETA: ⬜ próxima activa.
+- FASE 9 — REPRODUCTOR (Media3 prevista, pendiente de evaluación y aprobación de dependencia).
+- FASE 10 — PLAYLISTS (m:n con orden; migración Room a versión libre).
+- FASE 11 — AJUSTES (DataStore cuando corresponda; aprobación previa).
+- FASE 12 — INTEGRACIÓN FINAL (los flujos importar→reproducir→playlist y compatibilidad con descargas futuras).
+- FASE 13 TESTING / 14 OPTIMIZACIÓN / 15 RELEASE: intactas tras la 12.
 
 ---
 
