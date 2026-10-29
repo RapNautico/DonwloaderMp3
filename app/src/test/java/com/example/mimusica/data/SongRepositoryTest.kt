@@ -5,6 +5,9 @@ import androidx.room3.Room
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongFileAvailability
+import com.example.mimusica.domain.repository.SongFileValidator
+import com.example.mimusica.presentation.library.LibraryFileCheckModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -80,6 +83,13 @@ class SongRepositoryTest {
     }
 
     @Test
+    fun biblioteca_y_busqueda_vacia_funcionan_sin_canciones() = runBlocking {
+        assertTrue(repository.observeLibrary().first().isEmpty())
+        assertTrue(repository.searchSongs("").isEmpty())
+        assertTrue(repository.searchSongs("   ").isEmpty())
+    }
+
+    @Test
     fun insertar_el_mismo_archivo_dos_veces_no_duplica_filas() = runBlocking {
         val s = song(uri = "content://media/external/audio/2")
         val firstInsert = repository.addSongs(listOf(s))
@@ -123,6 +133,29 @@ class SongRepositoryTest {
 
         assertEquals(null, repository.getSong(s.uri))
         assertTrue(repository.observeLibrary().first().isEmpty())
+    }
+
+    @Test
+    fun comprobar_archivo_no_disponible_no_elimina_el_registro_room() = runBlocking {
+        val s = song(uri = "content://media/external/audio/no-disponible")
+        repository.addSongs(listOf(s))
+        val results = listOf(
+            SongFileAvailability.MISSING,
+            SongFileAvailability.INACCESSIBLE,
+            SongFileAvailability.INVALID,
+        ).iterator()
+        val fileCheck = LibraryFileCheckModel(SongFileValidator { results.next() })
+
+        for (expected in listOf(
+            SongFileAvailability.MISSING,
+            SongFileAvailability.INACCESSIBLE,
+            SongFileAvailability.INVALID,
+        )) {
+            fileCheck.check(s.uri)
+            assertEquals(expected, fileCheck.availability.value[s.uri])
+            assertEquals(s, repository.getSong(s.uri))
+        }
+        assertEquals(listOf(s), repository.observeLibrary().first())
     }
 
     @Test

@@ -7,12 +7,16 @@ import com.example.mimusica.domain.repository.SongRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,6 +41,9 @@ class LibraryListModelTest {
         var searchCalls = 0
         var lastQuery: String? = null
         var failQueries = setOf<String>()
+        var blockingQuery: String? = null
+        val blockingSearchStarted = CompletableDeferred<Unit>()
+        var blockingSearchCancelled = false
 
         override suspend fun addSongs(songs: List<Song>): Int {
             val nuevas = songs.filter { nueva -> stored.none { it.uri == nueva.uri } }
@@ -58,6 +65,15 @@ class LibraryListModelTest {
         override suspend fun searchSongs(query: String): List<Song> {
             searchCalls++
             lastQuery = query
+            if (query == blockingQuery) {
+                blockingSearchStarted.complete(Unit)
+                try {
+                    awaitCancellation()
+                } catch (cancelled: CancellationException) {
+                    blockingSearchCancelled = true
+                    throw cancelled
+                }
+            }
             if (query in failQueries) throw IllegalStateException("fallo simulado de búsqueda")
             return stored.filter { it.title.contains(query, ignoreCase = true) }
         }
@@ -123,6 +139,12 @@ class LibraryListModelTest {
 
     private suspend fun esperarQuiescencia(ms: Long = QUIESC_MS) = delay(ms)
 
+    private suspend fun awaitCondition(predicate: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 2_000
+        while (!predicate() && System.currentTimeMillis() < deadline) delay(5)
+        assertTrue("condition not reached in time", predicate())
+    }
+
     // ---------- debounce (requisito 1) ----------
 
     @Test
@@ -163,6 +185,37 @@ class LibraryListModelTest {
         // Sin RESULTADOS para "q19": nada obsoleto de consultas rápidas anteriores:
         assertTrue(modelo.visibleSongs.value.songs.isEmpty())
         assertNull(modelo.error.value)
+    }
+
+    @Test
+    fun cancelar_consulta_en_curso_evita_publicar_resultado_obsoleto() = runBlocking {
+        esperarQuiescencia()
+        repo.blockingQuery = "first"
+        modelo.onQueryChange("first")
+        withTimeout(2_000) { repo.blockingSearchStarted.await() }
+
+        modelo.onQueryChange("rock")
+        awaitCondition {
+            modelo.visibleSongs.value.query == "rock" &&
+                !modelo.visibleSongs.value.isLoading
+        }
+
+        assertTrue(repo.blockingSearchCancelled)
+        assertEquals("rock", repo.lastQuery)
+        assertEquals(listOf("u-a", "u-b"), modelo.visibleSongs.value.songs.map { it.uri })
+    }
+
+    @Test
+    fun consulta_con_solo_espacios_muestra_la_biblioteca_sin_buscar() = runBlocking {
+        esperarQuiescencia()
+        modelo.onQueryChange("   ")
+        awaitCondition {
+            modelo.visibleSongs.value.query.isEmpty() &&
+                !modelo.visibleSongs.value.isLoading
+        }
+
+        assertEquals(0, repo.searchCalls)
+        assertEquals(listOf("u-a", "u-b", "u-c"), modelo.visibleSongs.value.songs.map { it.uri })
     }
 
     // ---------- resultados (requisitos 1-4) ----------
