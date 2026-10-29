@@ -6,6 +6,7 @@ import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.model.toComparator
 import com.example.mimusica.domain.repository.SongRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +50,8 @@ class GroupBrowseModelsTest {
         var lastDetailKind: GroupKind? = null
         var lastDetailName: String? = null
         var detailError: Throwable? = null
+        var detailStarted: CompletableDeferred<Unit>? = null
+        var detailGate: CompletableDeferred<Unit>? = null
 
         override fun observeArtistSummaries(): Flow<List<ArtistSummary>> = artistsState
 
@@ -67,6 +70,8 @@ class GroupBrowseModelsTest {
         ): List<Song> {
             lastDetailKind = kind
             lastDetailName = name
+            detailStarted?.complete(Unit)
+            detailGate?.await()
             if (detailError != null) throw detailError!!
             return found ?: emptyList()
         }
@@ -224,6 +229,32 @@ class GroupBrowseModelsTest {
         val estado = model.state.value as GroupDetailState.Error
         assertTrue(estado.message.isNotBlank())
         assertFalse(estado.message.isEmpty())
+    }
+
+    @Test
+    fun cancelacion_del_detalle_no_se_convierte_en_estado_error() = runBlocking {
+        val cancelled = kotlinx.coroutines.CancellationException("query cancelled")
+        val started = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val parent = kotlinx.coroutines.SupervisorJob()
+        val detailScope = CoroutineScope(parent + Dispatchers.Unconfined)
+        repo.detailError = cancelled
+        repo.detailStarted = started
+        repo.detailGate = gate
+        val model = GroupDetailModel(repo, GroupKind.ARTIST, groupName = "Alpha")
+
+        try {
+            model.startIn(detailScope)
+            started.await()
+            val operation = parent.children.single()
+            gate.complete(Unit)
+            operation.join()
+
+            assertTrue(operation.isCancelled)
+            assertEquals(GroupDetailState.Loading, model.state.value)
+        } finally {
+            detailScope.cancel()
+        }
     }
 
     @Test

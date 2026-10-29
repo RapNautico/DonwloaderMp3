@@ -1,6 +1,7 @@
 package com.example.mimusica.presentation.library
 
 import com.example.mimusica.domain.repository.SongRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,11 +43,17 @@ class LibraryManagerModel(
     suspend fun deleteSong(uri: String) {
         if (_busy.value) return // ya hay una eliminación en curso
         _busy.value = true
-        val resultado = runCatching { repository.deleteSong(uri) }
-        _busy.value = false
-        _error.value = resultado.fold(
-            onSuccess = { null },
-            onFailure = { fallo -> fallo.message ?: "error desconocido" },
-        )
+        try {
+            try {
+                repository.deleteSong(uri)
+                _error.value = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (fallo: Throwable) {
+                _error.value = fallo.message ?: "error desconocido"
+            }
+        } finally {
+            _busy.value = false
+        }
     }
 }

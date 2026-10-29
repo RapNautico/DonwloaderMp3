@@ -8,22 +8,21 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * FASE 8.1: prueba de la migración Room v2→v3 en JVM (BundledSQLiteDriver, sin emulador).
+ * Migraciones Room v1→v3 y v2→v3 en JVM (BundledSQLiteDriver, sin emulador).
  *
  * Estrategia sin `room3-testing` (dependencia NO aprobada): se crea a mano un
- * archivo de base de datos con el esquema EXACTO de la versión 2 (tabla `songs`
- * de 12 columnas, sus dos índices y `room_master_table` con el identity hash
- * real del schema exportado `app/schemas/.../2.json`), y a continuación se abra
- * con Room vía `AppDatabase.build()` (que registra MIGRATION_2_3): Room debe
- * detectar la versión 2, ejecutar la migración y conservar TODO el dato.
+ * archivo de base de datos con el esquema exacto de una versión exportada,
+ * identity hash y user_version; Room abre el archivo mediante
+ * `AppDatabase.build()` y ejecuta la cadena de migraciones registrada.
  *
- * El identity hash de la v2 es constante (esquema congelado y exportado); si
- * cambiara, este test fallará y obligará a revisar la migración.
+ * Los identity hashes son constantes de los esquemas exportados; si cambian,
+ * las pruebas fallan y obligan a revisar el fixture histórico.
  */
 class RoomMigrationTest {
 
@@ -32,6 +31,8 @@ class RoomMigrationTest {
 
     /** Identity hash del schema v2 exportado (app/schemas/2.json, 2026-10-28). */
     private val identityHashV2 = "0071e59fa966f13cab292a4242891126"
+    /** Identity hash del schema v1 exportado (app/schemas/1.json). */
+    private val identityHashV1 = "963d146075f2eda33158d0fddb3b140b"
 
     private lateinit var dbFile: String
 
@@ -90,6 +91,125 @@ class RoomMigrationTest {
                 bindLong(10, 44_100L) // sampleRateHz
                 bindLong(11, 2L) // channels
                 bindNull(12) // artworkPath
+            }
+        }
+    }
+
+    /** Crea el esquema v1 según el JSON exportado, con una fila histórica. */
+    private fun crearBaseV1ConCancion(uri: String, titulo: String, artista: String?) {
+        dbFile = tmp.newFile("v1.db").absolutePath
+        BundledSQLiteDriver().open(dbFile).use { conn ->
+            fun exec(sql: String, bind: (androidx.sqlite.SQLiteStatement.() -> Unit)? = null) {
+                conn.prepare(sql).use { stmt ->
+                    bind?.invoke(stmt)
+                    stmt.step()
+                }
+            }
+            exec(
+                """
+                CREATE TABLE IF NOT EXISTS `songs` (
+                    `uri` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `artist` TEXT,
+                    `album` TEXT,
+                    `durationMs` INTEGER NOT NULL,
+                    `dateAddedMs` INTEGER NOT NULL,
+                    `mimeType` TEXT,
+                    `sizeBytes` INTEGER,
+                    `bitrateBps` INTEGER,
+                    PRIMARY KEY(`uri`)
+                )
+                """.trimIndent(),
+            )
+            exec("CREATE INDEX IF NOT EXISTS `index_songs_title` ON `songs` (`title`)")
+            exec("CREATE INDEX IF NOT EXISTS `index_songs_artist` ON `songs` (`artist`)")
+            exec(
+                "CREATE TABLE IF NOT EXISTS `room_master_table` (`id` INTEGER PRIMARY KEY, `identity_hash` TEXT)",
+            )
+            exec("INSERT OR REPLACE INTO `room_master_table` (`id`, `identity_hash`) VALUES (42, ?)") {
+                bindText(1, identityHashV1)
+            }
+            exec("PRAGMA user_version = 1")
+            exec("INSERT INTO `songs` VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)") {
+                bindText(1, uri)
+                bindText(2, titulo)
+                if (artista != null) bindText(3, artista) else bindNull(3)
+                bindText(4, "Álbum v1")
+                bindLong(5, 205_000L)
+                bindLong(6, 777_000_000L)
+                bindText(7, "audio/mpeg")
+                bindLong(8, 8_000_000L)
+                bindLong(9, 320_000L)
+            }
+        }
+    }
+
+    @Test
+    fun migracion_1_a_3_conserva_datos_y_crea_el_esquema_v3() = runBlocking {
+        crearBaseV1ConCancion("content://sa/v1cancion", "Canción v1", "Artista v1")
+
+        val db = AppDatabase.build(dbFile)
+        val repo = SongRepositoryImpl(db.songDao())
+        val canciones = repo.observeLibrary().first()
+
+        assertEquals(1, canciones.size)
+        val song = canciones.single()
+        assertEquals("content://sa/v1cancion", song.uri)
+        assertEquals("Canción v1", song.title)
+        assertEquals("Artista v1", song.artist)
+        assertEquals("Álbum v1", song.album)
+        assertEquals(205_000L, song.durationMs)
+        assertEquals(777_000_000L, song.dateAddedMs)
+        assertEquals("audio/mpeg", song.mimeType)
+        assertEquals(8_000_000L, song.sizeBytes)
+        assertEquals(320_000L, song.bitrateBps)
+        assertNull(song.sampleRateHz)
+        assertNull(song.channels)
+        assertNull(song.artworkPath)
+        assertNull(song.genre)
+
+        db.close()
+        BundledSQLiteDriver().open(dbFile).use { conn ->
+            val columns = mutableListOf<String>()
+            conn.prepare("PRAGMA table_info(`songs`)").use { statement ->
+                while (statement.step()) columns += statement.getText(1)
+            }
+            assertEquals(
+                listOf(
+                    "uri",
+                    "title",
+                    "artist",
+                    "album",
+                    "durationMs",
+                    "dateAddedMs",
+                    "mimeType",
+                    "sizeBytes",
+                    "bitrateBps",
+                    "sampleRateHz",
+                    "channels",
+                    "artworkPath",
+                    "genre",
+                ),
+                columns,
+            )
+
+            val indices = mutableSetOf<String>()
+            conn.prepare("PRAGMA index_list(`songs`)").use { statement ->
+                while (statement.step()) indices += statement.getText(1)
+            }
+            assertEquals(
+                setOf(
+                    "index_songs_title",
+                    "index_songs_artist",
+                    "index_songs_album",
+                    "index_songs_dateAddedMs",
+                ),
+                indices.filterNot { it.startsWith("sqlite_autoindex_") }.toSet(),
+            )
+
+            conn.prepare("PRAGMA user_version").use { statement ->
+                assertTrue(statement.step())
+                assertEquals(3L, statement.getLong(0))
             }
         }
     }

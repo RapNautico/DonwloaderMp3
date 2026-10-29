@@ -5,6 +5,7 @@ import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -13,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -77,6 +79,24 @@ class LibraryManagerModelTest {
         assertEquals("Room bloqueada", model.error.value)
         // busy SIEMPRE se libera (el fold va DESPUÉS del desbloqueo):
         assertFalse(model.busy.value)
+    }
+
+    @Test
+    fun cancelacion_de_eliminacion_se_propaga_y_libera_busy_sin_error() = runBlocking {
+        val cancelled = CancellationException("delete cancelled")
+        repo.deleteError = cancelled
+
+        var caught: CancellationException? = null
+        try {
+            model.deleteSong("content://a/b")
+        } catch (actual: CancellationException) {
+            caught = actual
+        }
+
+        assertSame(cancelled, caught)
+        assertNull(model.error.value)
+        assertFalse(model.busy.value)
+        assertTrue(repo.deleted.isEmpty())
     }
 
     @Test

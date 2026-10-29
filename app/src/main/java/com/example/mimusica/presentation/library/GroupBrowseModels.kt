@@ -2,6 +2,7 @@ package com.example.mimusica.presentation.library
 
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.repository.SongRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -112,18 +113,18 @@ class GroupDetailModel(
     fun startIn(scope: CoroutineScope) {
         scope.launch {
             _state.value = GroupDetailState.Loading
-            val resultado = runCatching {
-                when (kind) {
+            try {
+                val songs = when (kind) {
                     GroupKind.ARTIST -> repository.getSongsByArtist(groupName)
                     GroupKind.ALBUM -> repository.getSongsByAlbum(groupName)
                 }
-            }
-            _state.value = resultado.fold(
-                onSuccess = { GroupDetailState.Content(it) },
-                onFailure = { fallo ->
+                _state.value = GroupDetailState.Content(songs)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (fallo: Throwable) {
+                _state.value =
                     GroupDetailState.Error(fallo.message ?: "error desconocido")
-                },
-            )
+            }
         }
     }
 }

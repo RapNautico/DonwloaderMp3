@@ -7,13 +7,8 @@ import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
 import com.example.mimusica.domain.repository.SongFileValidator
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** Estado de una importación en curso (requisito FASE 5 §7/§8). */
 sealed interface ImportState {
@@ -40,10 +35,10 @@ class LibraryViewModel(
     songFileValidator: SongFileValidator,
 ) : ViewModel() {
 
-    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
-    val importState: StateFlow<ImportState> = _importState.asStateFlow()
-
-    private val importMutex = Mutex()
+    private val importModel = LibraryImportModel { uris, onProgress ->
+        importAudioUseCase(uris, onProgress)
+    }
+    val importState: StateFlow<ImportState> = importModel.state
 
     private val loadModel = LibraryLoadModel(songRepository)
 
@@ -138,31 +133,11 @@ class LibraryViewModel(
      */
     fun importFiles(uriStrings: List<String>) {
         if (uriStrings.isEmpty()) return
-        viewModelScope.launch {
-            val locked = importMutex.tryLock()
-            if (!locked) return@launch // ya hay una importación en curso: ignorar
-
-            try {
-                _importState.value = ImportState.Running(current = 0, total = uriStrings.size)
-                val report = try {
-                    importAudioUseCase(uriStrings) { current, total ->
-                        _importState.value = ImportState.Running(current, total)
-                    }
-                } catch (unexpected: Throwable) {
-                    _importState.value = ImportState.Failed(
-                        message = unexpected.message ?: "Error inesperado",
-                    )
-                    return@launch
-                }
-                _importState.value = ImportState.Done(report)
-            } finally {
-                importMutex.unlock()
-            }
-        }
+        viewModelScope.launch { importModel.importFiles(uriStrings) }
     }
 
     /** Vuelve a Idle tras mostrar el resultado (caller: dismiss tras snackbar). */
     fun dismissImportResult() {
-        _importState.update { ImportState.Idle }
+        importModel.dismissResult()
     }
 }
