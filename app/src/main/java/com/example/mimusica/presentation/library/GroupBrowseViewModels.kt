@@ -64,6 +64,10 @@ class GroupDetailViewModel(
 
     val state: StateFlow<GroupDetailState> get() = model.state
 
+    fun retry() {
+        model.startIn(viewModelScope)
+    }
+
     init {
         model.startIn(viewModelScope)
     }

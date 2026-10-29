@@ -25,6 +25,7 @@
     <string name="library_import_done">%1$d canciones añadidas</string>
     <string name="library_import_duplicates">%1$d canciones ya estaban en la biblioteca</string>
     <string name="library_import_partially_failed">No se pudieron importar %1$d archivos.</string>
+    <string name="library_import_dismiss">Cerrar resultado de importación</string>
     <string name="library_search_hint">Buscar canción, artista o álbum</string>
     <string name="library_search_clear">Borrar búsqueda</string>
     <string name="library_search_no_results_title">Sin resultados</string>

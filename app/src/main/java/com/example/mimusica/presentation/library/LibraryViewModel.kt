@@ -76,7 +76,7 @@ class LibraryViewModel(
 
     /** Reintenta Room; el query visible también se vuelve a suscribir. */
     fun retryLibraryLoad() {
-        loadModel.retryIn(viewModelScope)
+        loadModel.retry()
         listModel.refresh()
     }
 
@@ -102,13 +102,13 @@ class LibraryViewModel(
     val searchError: StateFlow<String?> = listModel.error
 
     init {
-        loadModel.observeIn(viewModelScope)
+        loadModel.observeIn(viewModelScope, listModel.sort)
         viewModelScope.launch {
             loadModel.state.collect { state ->
                 fileCheckModel.retainSongs(state.songs.mapTo(mutableSetOf()) { it.uri })
             }
         }
-        listModel.startIn(viewModelScope)
+        listModel.startIn(viewModelScope, loadModel.state)
     }
 
     /** Cambia la consulta; el debounce (500 ms) evita consultar por cada pulsación. */

@@ -19,7 +19,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -201,7 +200,7 @@ fun ArtistDetailScreen(
         title = name ?: stringResource(R.string.library_unknown_artist),
         onBack = onBack,
     ) {
-        GroupDetailContent(estado, onSongOpen)
+        GroupDetailContent(estado, onSongOpen, viewModel::retry)
     }
 }
 
@@ -222,7 +221,7 @@ fun AlbumDetailScreen(
         title = name ?: stringResource(R.string.library_unknown_album),
         onBack = onBack,
     ) {
-        GroupDetailContent(estado, onSongOpen)
+        GroupDetailContent(estado, onSongOpen, viewModel::retry)
     }
 }
 
@@ -230,9 +229,10 @@ fun AlbumDetailScreen(
 private fun GroupDetailContent(
     estado: GroupDetailState,
     onSongOpen: (String) -> Unit,
+    onRetry: () -> Unit,
 ) {
     when (estado) {
-        GroupDetailState.Loading -> Centered { CircularProgressIndicator() }
+        GroupDetailState.Loading -> LibraryLoadingSkeleton()
         is GroupDetailState.Content -> {
             if (estado.songs.isEmpty()) {
                 Centered {
@@ -247,7 +247,7 @@ private fun GroupDetailContent(
                 SongList(estado.songs, onSongClick = { song -> onSongOpen(song.uri) })
             }
         }
-        is GroupDetailState.Error -> GroupErrorBanner(estado.message)
+        is GroupDetailState.Error -> GroupErrorBanner(estado.message, onRetry)
     }
 }
 

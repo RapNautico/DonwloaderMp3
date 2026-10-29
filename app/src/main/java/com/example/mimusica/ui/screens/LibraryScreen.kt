@@ -136,7 +136,10 @@ fun LibraryScreen(
 
             when (val import = importState) {
                 is ImportState.Running -> ImportProgressBanner(import.current, import.total)
-                is ImportState.Done -> ImportResultBanner(import.report)
+                is ImportState.Done -> ImportResultBanner(
+                    report = import.report,
+                    onDismiss = viewModel::dismissImportResult,
+                )
                 is ImportState.Failed -> ImportErrorBanner(import.message)
                 ImportState.Idle -> Unit
             }
@@ -276,7 +279,10 @@ private fun ImportProgressBanner(current: Int, total: Int) {
 }
 
 @Composable
-private fun ImportResultBanner(report: com.example.mimusica.domain.importing.ImportReport) {
+private fun ImportResultBanner(
+    report: com.example.mimusica.domain.importing.ImportReport,
+    onDismiss: () -> Unit,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = if (report.failures.isEmpty()) {
@@ -285,22 +291,35 @@ private fun ImportResultBanner(report: com.example.mimusica.domain.importing.Imp
             MaterialTheme.colorScheme.errorContainer
         },
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(
-                text = stringResource(R.string.library_import_done, report.songsAdded),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            if (report.duplicatesSkipped > 0) {
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.library_import_duplicates, report.duplicatesSkipped),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = stringResource(R.string.library_import_done, report.songsAdded),
+                    style = MaterialTheme.typography.labelLarge,
                 )
+                if (report.duplicatesSkipped > 0) {
+                    Text(
+                        text = stringResource(R.string.library_import_duplicates, report.duplicatesSkipped),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (report.failures.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.library_import_partially_failed, report.failures.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
             }
-            if (report.failures.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.library_import_partially_failed, report.failures.size),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.library_import_dismiss),
                 )
             }
         }

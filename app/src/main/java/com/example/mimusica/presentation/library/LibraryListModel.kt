@@ -74,8 +74,8 @@ class LibraryListModel(
 
     private val refreshRequests = MutableStateFlow(0)
 
-    fun startIn(scope: CoroutineScope) {
-        pipeline(scope)
+    fun startIn(scope: CoroutineScope, libraryState: StateFlow<LibraryLoadState>? = null) {
+        pipeline(scope, libraryState)
     }
 
     fun onQueryChange(query: String) {
@@ -96,18 +96,34 @@ class LibraryListModel(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-    private fun pipeline(scope: CoroutineScope) {
+    private fun pipeline(
+        scope: CoroutineScope,
+        libraryState: StateFlow<LibraryLoadState>?,
+    ) {
         combine(_query, _sort, refreshRequests) { query, sort, _ -> query.trim() to sort }
             .debounce(searchDebounceMs)
             .flatMapLatest { (trimmed, sort) ->
                 kotlinx.coroutines.flow.flow {
                     try {
                         if (trimmed.isEmpty()) {
-                            emitAll(
-                                songRepository.observeLibrary(sort).map { lista ->
-                                    VisibleSongs(lista, null, trimmed, isLoading = false)
-                                },
-                            )
+                            if (libraryState != null) {
+                                emitAll(
+                                    libraryState.map { state ->
+                                        VisibleSongs(
+                                            songs = state.songs,
+                                            error = state.error,
+                                            query = trimmed,
+                                            isLoading = state.isLoading,
+                                        )
+                                    },
+                                )
+                            } else {
+                                emitAll(
+                                    songRepository.observeLibrary(sort).map { lista ->
+                                        VisibleSongs(lista, null, trimmed, isLoading = false)
+                                    },
+                                )
+                            }
                         } else {
                             val lista = songRepository.searchSongs(trimmed)
                                 .sortedWith(sort.toComparator())

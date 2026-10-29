@@ -61,4 +61,21 @@ class LibraryImportModelTest {
 
         assertEquals(ImportState.Failed("fallo de lote"), model.state.value)
     }
+
+    @Test
+    fun cerrar_resultado_de_importacion_vuelve_a_idle() = runBlocking {
+        val report = ImportReport(
+            totalRequested = 1,
+            songsAdded = 1,
+            duplicatesSkipped = 0,
+            failures = emptyList(),
+        )
+        val model = LibraryImportModel { _, _ -> report }
+        model.importFiles(listOf("content://song"))
+
+        assertEquals(ImportState.Done(report), model.state.value)
+        model.dismissResult()
+
+        assertEquals(ImportState.Idle, model.state.value)
+    }
 }

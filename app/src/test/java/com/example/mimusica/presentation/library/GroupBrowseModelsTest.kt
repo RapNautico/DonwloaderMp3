@@ -232,6 +232,22 @@ class GroupBrowseModelsTest {
     }
 
     @Test
+    fun reintentar_detalle_vuelve_a_consultar_y_publica_contenido() = runBlocking {
+        repo.detailError = IllegalStateException("fallo temporal")
+        val model = GroupDetailModel(repo, GroupKind.ALBUM, groupName = "Álbum")
+        model.startIn(scope)
+        await { model.state.value is GroupDetailState.Error }
+
+        repo.detailError = null
+        model.startIn(scope)
+        await { model.state.value is GroupDetailState.Content }
+
+        assertEquals(GroupDetailState.Content(emptyList()), model.state.value)
+        assertEquals(GroupKind.ALBUM, repo.lastDetailKind)
+        assertEquals("Álbum", repo.lastDetailName)
+    }
+
+    @Test
     fun cancelacion_del_detalle_no_se_convierte_en_estado_error() = runBlocking {
         val cancelled = kotlinx.coroutines.CancellationException("query cancelled")
         val started = CompletableDeferred<Unit>()
