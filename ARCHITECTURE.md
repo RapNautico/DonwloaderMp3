@@ -107,19 +107,24 @@ Reglas de dependencia:
 ```mermaid
 flowchart LR
     Screen["Composable"] -->|intencion| PVM["PlayerViewModel"]
-    PVM --> PC["PlayerController"]
-    PC --> SVC["MediaPlaybackService (foregroundServiceType=mediaPlayback)"]
-    SVC --> MS3["Media3 Player"]
-    MS3 --> MSES["MediaSession (lock screen, Bluetooth, auriculares)"]
-    AF["AudioFocus / interrupciones"] --> MS3
-    SVC --> NOTIF["Notificacion multimedia"]
+    PVM --> DOMAIN["Domain: PlayerController + PlaybackState"]
+    DOMAIN --> DATA["Data: Media3PlayerController"]
+    DATA --> SESSION["MediaController / SessionToken"]
+    SESSION --> SVC["MediaPlaybackService (foregroundServiceType=mediaPlayback)"]
+    SVC --> MS3["ExoPlayer"]
+    MS3 --> MSES["MediaSession (notificacion, lock screen, Bluetooth)"]
+    AF["AudioFocus / audio becoming noisy"] --> MS3
 ```
 
 Responsabilidades:
 
-- El servicio de reproduccion sobrevive a la destruccion de la Activity.
-- Perdida de foco de audio: pausar segun el estandar de Android. Desconexion de auriculares: pausar. Fin de cola: detener el servicio.
-- Recuperacion de estado: cola y posicion persistidas para restaurar tras muerte del proceso (detalle en FASE 10).
+- `PlayerController` y los modelos de playback viven en Domain; Presentation no conoce Media3.
+- `Media3PlayerController` conecta la UI con la sesion usando `MediaController`, expone estado mediante `StateFlow` y propaga `CancellationException`.
+- `MediaPlaybackService` es dueño del `ExoPlayer` y `MediaSession`; se declara como foreground service de tipo `mediaPlayback`.
+- ExoPlayer gestiona el foco de audio y `setHandleAudioBecomingNoisy(true)` pausa al desconectar auriculares.
+- La cola, el indice, la posicion y `playWhenReady` se guardan como datos serializables en preferencias privadas, nunca como objetos Media3.
+- El acceso a canciones se realiza mediante las URI persistidas por SAF. Si una URI ya no es legible, el error de Media3 se refleja en el estado de playback; no se elimina el registro de Room.
+- La validacion de notificacion, lock screen, foco y restauracion del proceso requiere pruebas manuales en dispositivo.
 
 ## 3.2 Ciclo de vida de una descarga
 
@@ -159,6 +164,7 @@ Componentes:
 - Screens.
 - ViewModels.
 - UI State.
+- `PlayerViewModel` transmite el estado de `PlayerController` a `PlayerScreen` y `MiniPlayer`.
 
 La Presentation NO debe:
 
@@ -215,7 +221,10 @@ media/
 storage/
 source/
 metadata/
+player/
 ```
+
+`data/player` contiene el controlador Media3, el servicio de sesion y el codec/almacenamiento de la instantanea serializable de reproduccion.
 
 ---
 

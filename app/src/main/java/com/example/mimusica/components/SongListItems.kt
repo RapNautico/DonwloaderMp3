@@ -41,12 +41,11 @@ import com.example.mimusica.domain.model.SongFileAvailability
  * La usan la lista de la biblioteca (8.3) y los detalles de artista/álbum.
  *
  * FASE 8.5: [onSongClick] abre el DETALLE de la canción (bottom sheet,
- * ruta `library/song?uri=...`). Cuando es null la fila NO es clicable
- * (comportamiento por defecto: la reproducción real llega en FASE 9).
+ * ruta `library/song?uri=...`). Cuando es null la fila NO es clicable.
  *
  * FASE 8.6/8.7: [menu] activa el menú contextual de gestión y comprobación:
- * Reproducir (Fase 9, inoperante), Añadir a playlist (Fase 10, inoperante),
- * comprobar archivo (bajo demanda), Información (abre el detalle 8.5) y
+ * Reproducir (inicia la cola de la lista visible), Añadir a playlist
+ * (Fase 10, inoperante), comprobar archivo (bajo demanda), Información y
  * Eliminar de biblioteca (requiere ConfirmDialog ANTES de llegar aquí).
  * Cuando es null NO hay menú
  * (detalles de artista/álbum: la gestión vive en la biblioteca por decidir
@@ -120,6 +119,8 @@ fun SongRow(
  * de biblioteca; aquí solo se renderizan.
  */
 data class SongRowMenu(
+    /** Reproduce desde la canción seleccionada y conserva la cola visible. */
+    val onPlay: () -> Unit,
     /** Abre el detalle de la canción (bottom sheet de 8.5). */
     val onInformation: () -> Unit,
     /** Pide SIMPLE el borrado (la ConfirmDialog vive en la pantalla). */
@@ -129,7 +130,7 @@ data class SongRowMenu(
     val isCheckingFile: Boolean = false,
 )
 
-/** Menú "⋮" de la biblioteca; reproducción y playlists siguen inoperantes. */
+/** Menú "⋮" de la biblioteca. */
 @Composable
 fun SongMenuButton(actions: SongRowMenu) {
     var expanded by remember { mutableStateOf(false) }
@@ -144,12 +145,12 @@ fun SongMenuButton(actions: SongRowMenu) {
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            // Callback POR REFUERZO para FASE 9 (PLAN 8.6): item presente e
-            // inoperante; sin lógica de reproducción (fuera de FASE 8).
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.song_menu_play)) },
-                onClick = { expanded = false },
-                enabled = false, // reproducción real: FASE 9
+                onClick = {
+                    expanded = false
+                    actions.onPlay()
+                },
             )
             // Callback POR REFUERZO para FASE 10 (PLAN 8.6):
             DropdownMenuItem(

@@ -43,8 +43,8 @@ flowchart LR
 ```
 
 - Navegación con Navigation Compose; bottom bar con 5 destinos (Home, Library, Playlists, Downloads, Settings).
-- MiniPlayer persistente sobre la bottom bar cuando hay reproducción activa; tap abre Player.
-- Player puede abrirse como bottom sheet expandible; decisión final de patrón (pantalla vs sheet) se valida con prototipo en Fase 2.
+- MiniPlayer persistente sobre la bottom bar cuando hay una canción seleccionada; tap en la canción abre Player.
+- Player es una pantalla completa dentro de Navigation Compose (decisión aprobada para FASE 9); la bottom bar se oculta en ese destino.
 
 ---
 
@@ -73,8 +73,10 @@ flowchart LR
 
 ## 3.5 Player (pantalla completa)
 
-- Portada grande, título/artista, barra de seek, play/pausa, siguiente, anterior, ±10 s, cola contextual.
+- Portada grande real cuando exista, título/artista, barra de seek, play/pausa, siguiente, anterior, ±10 s, volumen y cola contextual.
+- La cola básica es secuencial; shuffle/repeat/repeat-one requieren acordar su comportamiento y controles visuales antes de activarse.
 - Transmite estado del reproductor (no posee lógica de reproducción).
+- Estados: sin canciones, cargando, reproduciendo, pausa, fin de cola y error de lectura/acceso.
 
 ## 3.6 Añadir audio
 
@@ -112,8 +114,8 @@ Regla: prohibido duplicar; cualquier pantalla nueva parte de estos componentes. 
 
 | Permiso / situación | Estrategia |
 |---|---|
-| Notificaciones (API 33+) | Se pide solo al activar background playback, con rationale previa; app funciona sin ella (solo sin notificación). |
-| Foreground media playback | Sin permiso especial: uso del tipo `mediaPlayback` con las restricciones del sistema. |
+| Notificaciones (API 33+) | La sesión multimedia publica los controles del sistema; no se solicita `POST_NOTIFICATIONS` para iniciar esta reproducción foreground. Validar visibilidad real en dispositivo. |
+| Foreground media playback | Declarar `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` junto al tipo `mediaPlayback` del servicio, según API objetivo. |
 | Almacenamiento | Nada de WRITE_EXTERNAL_STORAGE legacy: MediaStore (add/write sin permiso en API 30+) y SAF para importar. |
 | Acceso a archivos existentes | Acceso a URI a través del Resolver/SAF, con detección de URI revocada. |
 

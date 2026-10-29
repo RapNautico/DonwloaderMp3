@@ -5,8 +5,8 @@ import com.example.mimusica.di.AppContainer
 
 /**
  * Contenedor vivido a nivel de aplicación: una sola base de datos y repositorio
- * para todo el proceso (doc Room: una instancia por proceso).
- * Se conectará a ViewModels en FASE 5.
+ * para todo el proceso (doc Room: una instancia por proceso), además del
+ * controlador compartido del reproductor.
  */
 class MiMusicaApplication : Application() {
     lateinit var container: AppContainer
@@ -15,5 +15,10 @@ class MiMusicaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+    }
+
+    override fun onTerminate() {
+        container.release()
+        super.onTerminate()
     }
 }

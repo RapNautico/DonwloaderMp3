@@ -67,7 +67,7 @@ import com.example.mimusica.presentation.library.LibraryViewModel
  * FASE 8.8: las pestañas seleccionan Canciones/Artistas/Álbumes dentro del
  * grafo existente; artistas y álbumes conservan sus resúmenes SQL.
  * FASE 8.5: [onOpenSong] abre el DETALLE (bottom sheet) de una canción.
- * (El menú de gestión llega en 8.6; la comprobación de archivos en 8.7.)
+ * El menú conserva acciones de gestión y permite iniciar reproducción en FASE 9.
  *
  * La actividad no conoce Room: solo usa `LibraryViewModel` (Domain).
  */
@@ -76,6 +76,7 @@ import com.example.mimusica.presentation.library.LibraryViewModel
 fun LibraryScreen(
     onSelectTab: (LibraryTab) -> Unit,
     onOpenSong: (String) -> Unit,
+    onPlaySongs: (List<Song>, String) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
@@ -206,6 +207,7 @@ fun LibraryScreen(
                         fileAvailability = fileAvailability,
                         menuFactory = { song ->
                             SongRowMenu(
+                                onPlay = { onPlaySongs(visibleSongs, song.uri) },
                                 onInformation = { onOpenSong(song.uri) },
                                 // La eliminación siempre requiere confirmación.
                                 onDelete = { pendingDelete = song },

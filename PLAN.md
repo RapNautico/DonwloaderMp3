@@ -315,9 +315,9 @@ Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 de
 
 # FASE 9 — REPRODUCTOR
 
-Estado: ⬜ Pendiente
+Estado: 🟡 Implementación integrada; no se declara cerrada hasta validar en dispositivo y decidir los modos avanzados.
 
-Objetivo: reproducción local completa. EVALUAR Media3/ExoPlayer ANTES de implementar: `androidx.media3` NO está en el classpath; agregarlo exige justificación (impacto APK, compatibilidad, mantenimiento) y tu aprobación explícita.
+Media3 fue evaluado y aprobado expresamente para esta fase: `androidx.media3:media3-exoplayer:1.11.1` y `androidx.media3:media3-session:1.11.1`. Se usa la pantalla completa de Navigation Compose elegida por el usuario; la UI no controla el reproductor subyacente.
 
 Arquitectura obligatoria (la UI nunca controla el reproductor subyacente):
 
@@ -327,20 +327,21 @@ UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 → archi
 
 ## 9.1 Reproducción
 
-- [ ] Play/pausa · anterior · siguiente · seek · ±10 s · duración · progreso · volumen.
-- [ ] Artwork real (copia de FASE 5) con placeholder del design system si no hay.
+- [x] Play/pausa · anterior · siguiente · seek · ±10 s · duración · progreso · volumen.
+- [x] Artwork real (copia de FASE 5) con placeholder del design system si no hay.
 
 ## 9.2 Cola y modos
 
-- [ ] Cola de reproducción (INDEPENDIENTE de la cola de descargas de 7.0; solo concepción no compartida), shuffle, repeat, repeat-one, comportamiento al finalizar la cola.
+- [x] Cola de reproducción independiente de la cola de descargas, selección desde biblioteca, navegación secuencial y comportamiento de cola vacía/fin.
+- [ ] Shuffle, repeat y repeat-one: no se activan porque el diseño aprobado de Player no define sus controles ni su comportamiento.
 
 ## 9.3 Fondo, sesión y energía
 
-- [ ] MediaSession · reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · pérdida de foco → pausa (ARCHITECTURE §3.1).
-- [ ] Recuperación de estado tras muerte del proceso (cola + posición).
-- Pendiente de decisión: MediaSessionService de Media3 vs servicio propio; documentado antes de implementar.
+- [x] MediaSession · servicio de reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · gestión de foco (ARCHITECTURE §3.1); pendiente de prueba manual en dispositivo.
+- [x] Recuperación serializable de cola, índice, posición y `playWhenReady` tras recrear el servicio/proceso; codec cubierto por pruebas JVM.
+- [x] Elección de `MediaSessionService` de Media3; permisos `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` declarados.
 
-Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel solo transmite estado; compilación y tests OK; instrumentadas pendientes si no hay dispositivo.
+Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel transmite estado; pruebas JVM y `assembleDebug` OK. Pendiente comprobar reproducción real, notificación/lock screen, foco, auriculares y recuperación en un dispositivo Android; la suite `androidTest` aún no existe.
 
 ---
 
