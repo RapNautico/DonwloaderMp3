@@ -1,23 +1,30 @@
 package com.example.mimusica.domain.player
 
+import com.example.mimusica.domain.model.PlaybackRepeatMode
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlaybackQueuePolicyTest {
     @Test
-    fun siguiente_no_avanza_mas_alla_del_final_ni_desde_una_cola_vacia() {
-        assertEquals(1, PlaybackQueuePolicy.nextIndex(0, 2))
-        assertNull(PlaybackQueuePolicy.nextIndex(1, 2))
-        assertNull(PlaybackQueuePolicy.nextIndex(-1, 0))
+    fun el_modo_repeticion_alterna_off_all_one_y_vuelve_a_off() {
+        assertEquals(
+            PlaybackRepeatMode.ALL,
+            PlaybackQueuePolicy.nextRepeatMode(PlaybackRepeatMode.OFF),
+        )
+        assertEquals(
+            PlaybackRepeatMode.ONE,
+            PlaybackQueuePolicy.nextRepeatMode(PlaybackRepeatMode.ALL),
+        )
+        assertEquals(
+            PlaybackRepeatMode.OFF,
+            PlaybackQueuePolicy.nextRepeatMode(PlaybackRepeatMode.ONE),
+        )
     }
 
     @Test
-    fun anterior_reinicia_la_actual_o_selecciona_la_previa() {
-        assertEquals(1, PlaybackQueuePolicy.previousIndex(1, 3, 3_001L))
-        assertEquals(0, PlaybackQueuePolicy.previousIndex(1, 3, 3_000L))
-        assertNull(PlaybackQueuePolicy.previousIndex(0, 3, 0L))
-        assertNull(PlaybackQueuePolicy.previousIndex(-1, 0, 0L))
+    fun anterior_reinicia_la_cancion_solo_despues_del_umbral() {
+        assertEquals(false, PlaybackQueuePolicy.shouldRestartCurrent(3_000L))
+        assertEquals(true, PlaybackQueuePolicy.shouldRestartCurrent(3_001L))
     }
 
     @Test

@@ -315,7 +315,7 @@ Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 de
 
 # FASE 9 — REPRODUCTOR
 
-Estado: 🟡 Implementación integrada; no se declara cerrada hasta validar en dispositivo y decidir los modos avanzados.
+Estado: 🟡 Implementación integrada; no se declara cerrada hasta validar los modos Repeat/Shuffle en un teléfono físico.
 
 Media3 fue evaluado y aprobado expresamente para esta fase: `androidx.media3:media3-exoplayer:1.11.1` y `androidx.media3:media3-session:1.11.1`. Se usa la pantalla completa de Navigation Compose elegida por el usuario; la UI no controla el reproductor subyacente.
 
@@ -333,15 +333,18 @@ UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 → archi
 ## 9.2 Cola y modos
 
 - [x] Cola de reproducción independiente de la cola de descargas, selección desde biblioteca, navegación secuencial y comportamiento de cola vacía/fin.
-- [ ] Shuffle, repeat y repeat-one: no se activan porque el diseño aprobado de Player no define sus controles ni su comportamiento.
+- [x] Repetición desactivada (predeterminada), repetición de cola y repetición de canción con ciclo de control explícito.
+- [x] Shuffle sin repetir canciones antes de completar el ciclo; activar/desactivar conserva la canción actual y funciona junto con ambos modos de repetición.
+- [x] Anterior/siguiente y MiniPlayer consultan la disponibilidad real de Media3, respetando shuffle y repetición.
+- [x] Controles accesibles de repetición y shuffle en la pantalla completa; el MiniPlayer conserva el espacio para reproducción, pausa y siguiente.
 
 ## 9.3 Fondo, sesión y energía
 
 - [x] MediaSession · servicio de reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · gestión de foco (ARCHITECTURE §3.1); pendiente de prueba manual en dispositivo.
-- [x] Recuperación serializable de cola, índice, posición y `playWhenReady` tras recrear el servicio/proceso; codec cubierto por pruebas JVM.
+- [x] Recuperación serializable de cola, índice, posición, `playWhenReady`, modos y orden shuffle tras recrear el servicio/proceso; snapshots v1 se restauran con modos predeterminados.
 - [x] Elección de `MediaSessionService` de Media3; permisos `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` declarados.
 
-Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel transmite estado; pruebas JVM y `assembleDebug` OK. Pendiente comprobar reproducción real, notificación/lock screen, foco, auriculares y recuperación en un dispositivo Android; la suite `androidTest` aún no existe.
+Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel transmite estado; pruebas JVM y `assembleDebug` OK. En un teléfono Android 14 con una sola canción se validaron Repeat One y Repeat All con shuffle activado/desactivado, el fin en modo normal y la restauración de modos, canción, posición y estado pausado. Falta validar en dispositivo el ciclo shuffle con varias canciones; la suite `androidTest` aún no existe. La fase permanece abierta hasta completar esa validación y las comprobaciones manuales pendientes de notificación/lock screen.
 
 ---
 

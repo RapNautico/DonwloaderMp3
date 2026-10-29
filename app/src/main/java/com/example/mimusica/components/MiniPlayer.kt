@@ -105,7 +105,7 @@ fun MiniPlayer(
             }
             IconButton(
                 onClick = onNext,
-                enabled = state.currentIndex in 0 until state.queue.lastIndex,
+                enabled = state.canSkipNext,
                 modifier = Modifier
                     .size(48.dp)
                     .semantics { contentDescription = nextDescription },

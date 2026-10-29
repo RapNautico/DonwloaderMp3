@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.mimusica.domain.model.PlaybackState
+import com.example.mimusica.domain.model.PlaybackRepeatMode
 import com.example.mimusica.domain.model.PlaybackStatus
 import com.example.mimusica.domain.model.PlaybackTrack
 import com.example.mimusica.domain.player.PlayerController
@@ -89,24 +90,17 @@ class Media3PlayerController(context: Context) : PlayerController {
     }
 
     override suspend fun skipToNext() = withController { controller ->
-        if (PlaybackQueuePolicy.nextIndex(controller.currentMediaItemIndex, controller.mediaItemCount) != null) {
+        if (controller.hasNextMediaItem()) {
             controller.seekToNextMediaItem()
         }
         publishState(controller, refreshQueue = true)
     }
 
     override suspend fun skipToPrevious() = withController { controller ->
-        val previousIndex = PlaybackQueuePolicy.previousIndex(
-            currentIndex = controller.currentMediaItemIndex,
-            queueSize = controller.mediaItemCount,
-            positionMs = controller.currentPosition,
-        )
-        if (previousIndex != null) {
-            if (previousIndex == controller.currentMediaItemIndex) {
-                controller.seekTo(0L)
-            } else {
-                controller.seekToPreviousMediaItem()
-            }
+        if (PlaybackQueuePolicy.shouldRestartCurrent(controller.currentPosition)) {
+            controller.seekTo(0L)
+        } else if (controller.hasPreviousMediaItem()) {
+            controller.seekToPreviousMediaItem()
         }
         publishState(controller, refreshQueue = true)
     }
@@ -129,11 +123,25 @@ class Media3PlayerController(context: Context) : PlayerController {
         publishState(controller)
     }
 
+    override suspend fun setRepeatMode(mode: PlaybackRepeatMode) = withController { controller ->
+        controller.repeatMode = mode.toMedia3RepeatMode()
+        publishState(controller)
+    }
+
+    override suspend fun setShuffleEnabled(enabled: Boolean) = withController { controller ->
+        controller.shuffleModeEnabled = enabled
+        publishState(controller)
+    }
+
     override suspend fun stop() = withController { controller ->
         controller.stop()
         controller.clearMediaItems()
         currentQueue = emptyList()
-        mutableState.value = PlaybackState(volume = controller.volume)
+        mutableState.value = PlaybackState(
+            volume = controller.volume,
+            repeatMode = controller.repeatMode.toPlaybackRepeatMode(),
+            shuffleEnabled = controller.shuffleModeEnabled,
+        )
     }
 
     fun release() {
@@ -232,6 +240,11 @@ class Media3PlayerController(context: Context) : PlayerController {
             isPlaying = controller.isPlaying,
             volume = controller.volume,
             error = failure?.message,
+            repeatMode = controller.repeatMode.toPlaybackRepeatMode(),
+            shuffleEnabled = controller.shuffleModeEnabled,
+            canSkipNext = controller.hasNextMediaItem(),
+            canSkipPrevious = controller.hasPreviousMediaItem() ||
+                PlaybackQueuePolicy.shouldRestartCurrent(controller.currentPosition),
         )
     }
 

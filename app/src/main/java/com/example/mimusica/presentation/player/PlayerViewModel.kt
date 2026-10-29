@@ -3,8 +3,10 @@ package com.example.mimusica.presentation.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mimusica.domain.model.PlaybackTrack
+import com.example.mimusica.domain.model.PlaybackRepeatMode
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.player.PlayerController
+import com.example.mimusica.domain.player.PlaybackQueuePolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +51,16 @@ class PlayerViewModel(
     fun seekBy(offsetMs: Long) = dispatch { playerController.seekBy(offsetMs) }
 
     fun setVolume(volume: Float) = dispatch { playerController.setVolume(volume) }
+
+    fun cycleRepeatMode() {
+        val nextMode = PlaybackQueuePolicy.nextRepeatMode(state.value.repeatMode)
+        dispatch { playerController.setRepeatMode(nextMode) }
+    }
+
+    fun toggleShuffle() {
+        val enabled = !state.value.shuffleEnabled
+        dispatch { playerController.setShuffleEnabled(enabled) }
+    }
 
     fun stop() = dispatch(playerController::stop)
 

@@ -5,10 +5,12 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.mimusica.domain.model.PlaybackTrack
@@ -78,6 +80,13 @@ class MediaPlaybackService : MediaSessionService() {
         val snapshot = snapshotStore.read() ?: return
         val items = snapshot.queue.map(::toMediaItem)
         player.setMediaItems(items, snapshot.currentIndex, snapshot.positionMs)
+        snapshot.shuffleOrder?.let { order ->
+            player.setShuffleOrder(
+                ShuffleOrder.DefaultShuffleOrder(order.toIntArray(), SHUFFLE_RANDOM_SEED),
+            )
+        }
+        player.repeatMode = snapshot.repeatMode.toMedia3RepeatMode()
+        player.shuffleModeEnabled = snapshot.shuffleEnabled
         player.prepare()
         player.playWhenReady = snapshot.playWhenReady
     }
@@ -98,8 +107,22 @@ class MediaPlaybackService : MediaSessionService() {
                 currentIndex = index,
                 positionMs = player.currentPosition.coerceAtLeast(0L),
                 playWhenReady = player.playWhenReady,
+                repeatMode = player.repeatMode.toPlaybackRepeatMode(),
+                shuffleEnabled = player.shuffleModeEnabled,
+                shuffleOrder = player.readShuffleOrder(),
             ),
         )
+    }
+
+    private fun ExoPlayer.readShuffleOrder(): List<Int>? {
+        val order = shuffleOrder
+        val indices = ArrayList<Int>(order.length)
+        var index = order.firstIndex
+        while (index != C.INDEX_UNSET && indices.size < order.length) {
+            indices += index
+            index = order.getNextIndex(index)
+        }
+        return indices.takeIf { it.size == order.length }
     }
 
     private fun toMediaItem(track: PlaybackTrack): MediaItem =
@@ -128,5 +151,6 @@ class MediaPlaybackService : MediaSessionService() {
 
     private companion object {
         const val POSITION_SAVE_INTERVAL_MS = 1_000L
+        val SHUFFLE_RANDOM_SEED = System.currentTimeMillis()
     }
 }

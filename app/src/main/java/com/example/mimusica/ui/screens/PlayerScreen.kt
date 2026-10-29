@@ -17,6 +17,9 @@ import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
@@ -45,12 +48,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
 import com.example.mimusica.components.PlaybackArtwork
 import com.example.mimusica.domain.model.PlaybackStatus
+import com.example.mimusica.domain.model.PlaybackRepeatMode
 import com.example.mimusica.domain.model.PlaybackTrack
 import com.example.mimusica.presentation.player.PlayerViewModel
 
@@ -189,6 +194,11 @@ fun PlayerScreen(
                         onForwardTen = { viewModel.seekBy(10_000L) },
                         onNext = viewModel::skipToNext,
                     )
+                    PlaybackModeControls(
+                        state = state,
+                        onCycleRepeatMode = viewModel::cycleRepeatMode,
+                        onToggleShuffle = viewModel::toggleShuffle,
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -264,6 +274,79 @@ fun PlayerScreen(
 }
 
 @Composable
+private fun PlaybackModeControls(
+    state: com.example.mimusica.domain.model.PlaybackState,
+    onCycleRepeatMode: () -> Unit,
+    onToggleShuffle: () -> Unit,
+) {
+    val repeatDescription = stringResource(R.string.player_repeat_toggle)
+    val repeatStateDescription = stringResource(
+        when (state.repeatMode) {
+            PlaybackRepeatMode.OFF -> R.string.player_repeat_off
+            PlaybackRepeatMode.ALL -> R.string.player_repeat_all
+            PlaybackRepeatMode.ONE -> R.string.player_repeat_one
+        },
+    )
+    val shuffleDescription = stringResource(
+        if (state.shuffleEnabled) {
+            R.string.player_shuffle_disable
+        } else {
+            R.string.player_shuffle_enable
+        },
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onCycleRepeatMode,
+            modifier = Modifier
+                .size(48.dp)
+                .semantics {
+                    contentDescription = repeatDescription
+                    stateDescription = repeatStateDescription
+                },
+        ) {
+            Icon(
+                imageVector = if (state.repeatMode == PlaybackRepeatMode.ONE) {
+                    Icons.Filled.RepeatOne
+                } else {
+                    Icons.Filled.Repeat
+                },
+                contentDescription = null,
+                tint = if (state.repeatMode == PlaybackRepeatMode.OFF) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+            )
+        }
+        IconButton(
+            onClick = onToggleShuffle,
+            modifier = Modifier
+                .size(48.dp)
+                .semantics {
+                    contentDescription = shuffleDescription
+                    stateDescription = shuffleDescription
+                },
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Shuffle,
+                contentDescription = null,
+                tint = if (state.shuffleEnabled) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+    }
+}
+
+@Composable
 private fun PlayerArtwork(track: PlaybackTrack) {
     PlaybackArtwork(
         artworkPath = track.artworkPath,
@@ -320,12 +403,7 @@ private fun PlaybackControls(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PlayerIconButton(
-            previousDescription,
-            onPrevious,
-            state.currentIndex > 0 ||
-                state.positionMs > com.example.mimusica.domain.player.PlaybackQueuePolicy.RESTART_PREVIOUS_THRESHOLD_MS,
-        ) {
+        PlayerIconButton(previousDescription, onPrevious, state.canSkipPrevious) {
             Icon(Icons.Filled.SkipPrevious, contentDescription = null)
         }
         PlayerIconButton(backDescription, onBackTen, state.durationMs > 0L) {
@@ -340,7 +418,7 @@ private fun PlaybackControls(
         PlayerIconButton(forwardDescription, onForwardTen, state.durationMs > 0L) {
             Icon(Icons.Filled.FastForward, contentDescription = null)
         }
-        PlayerIconButton(nextDescription, onNext, state.currentIndex in 0 until state.queue.lastIndex) {
+        PlayerIconButton(nextDescription, onNext, state.canSkipNext) {
             Icon(Icons.Filled.SkipNext, contentDescription = null)
         }
     }

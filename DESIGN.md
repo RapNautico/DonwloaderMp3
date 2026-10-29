@@ -74,7 +74,8 @@ flowchart LR
 ## 3.5 Player (pantalla completa)
 
 - Portada grande real cuando exista, título/artista, barra de seek, play/pausa, siguiente, anterior, ±10 s, volumen y cola contextual.
-- La cola básica es secuencial; shuffle/repeat/repeat-one requieren acordar su comportamiento y controles visuales antes de activarse.
+- Controles de reproducción en pantalla completa: repetición desactivada → repetir toda la cola → repetir canción → desactivada; shuffle se activa/desactiva sin cambiar la canción actual. Shuffle recorre todas las canciones antes de iniciar otro ciclo y se combina con ambos modos de repetición.
+- Repeat/Shuffle activos se distinguen visualmente y exponen descripciones y estado accesibles. El MiniPlayer mantiene sus acciones esenciales; los modos se controlan desde la pantalla completa.
 - Transmite estado del reproductor (no posee lógica de reproducción).
 - Estados: sin canciones, cargando, reproduciendo, pausa, fin de cola y error de lectura/acceso.
 

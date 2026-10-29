@@ -122,7 +122,7 @@ Responsabilidades:
 - `Media3PlayerController` conecta la UI con la sesion usando `MediaController`, expone estado mediante `StateFlow` y propaga `CancellationException`.
 - `MediaPlaybackService` es dueño del `ExoPlayer` y `MediaSession`; se declara como foreground service de tipo `mediaPlayback`.
 - ExoPlayer gestiona el foco de audio y `setHandleAudioBecomingNoisy(true)` pausa al desconectar auriculares.
-- La cola, el indice, la posicion y `playWhenReady` se guardan como datos serializables en preferencias privadas, nunca como objetos Media3.
+- La cola, el indice, la posicion, `playWhenReady`, el modo de repeticion, el estado shuffle y su orden completo se guardan como datos serializables en preferencias privadas, nunca como objetos Media3. El codec lee snapshots v1 y asigna modos predeterminados a los campos que no existian.
 - El acceso a canciones se realiza mediante las URI persistidas por SAF. Si una URI ya no es legible, el error de Media3 se refleja en el estado de playback; no se elimina el registro de Room.
 - La validacion de notificacion, lock screen, foco y restauracion del proceso requiere pruebas manuales en dispositivo.
 
