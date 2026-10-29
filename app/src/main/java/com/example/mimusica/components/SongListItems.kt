@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongFileAvailability
 
 /**
  * Fila de canción REUTILIZABLE (FASE 8.4, extracción de LibraryScreen).
@@ -43,10 +44,11 @@ import com.example.mimusica.domain.model.Song
  * ruta `library/song?uri=...`). Cuando es null la fila NO es clicable
  * (comportamiento por defecto: la reproducción real llega en FASE 9).
  *
- * FASE 8.6: [menu] activa el MENÚ CONTEXTUAL de gestión (PLAN 8.6):
+ * FASE 8.6/8.7: [menu] activa el menú contextual de gestión y comprobación:
  * Reproducir (Fase 9, inoperante), Añadir a playlist (Fase 10, inoperante),
- * Información (abre el detalle 8.5) y Eliminar de biblioteca (requiere
- * ConfirmDialog ANTES de llegar aquí). Cuando es null NO hay menú
+ * comprobar archivo (bajo demanda), Información (abre el detalle 8.5) y
+ * Eliminar de biblioteca (requiere ConfirmDialog ANTES de llegar aquí).
+ * Cuando es null NO hay menú
  * (detalles de artista/álbum: la gestión vive en la biblioteca por decidir
  * del plan 8.8; no se inventa comportamiento extra).
  */
@@ -55,6 +57,7 @@ fun SongRow(
     song: Song,
     onSongClick: ((Song) -> Unit)? = null,
     menu: (@Composable () -> Unit)? = null,
+    fileAvailability: SongFileAvailability? = null,
 ) {
     Row(
         modifier = Modifier
@@ -84,6 +87,21 @@ fun SongRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            fileAvailability?.let { availability ->
+                Text(
+                    text = fileAvailabilityLabel(availability),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when (availability) {
+                        SongFileAvailability.CHECKING -> MaterialTheme.colorScheme.onSurfaceVariant
+                        SongFileAvailability.AVAILABLE -> MaterialTheme.colorScheme.primary
+                        SongFileAvailability.MISSING,
+                        SongFileAvailability.INACCESSIBLE,
+                        SongFileAvailability.INVALID -> MaterialTheme.colorScheme.error
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // Duración real (0 = desconocida) — nunca inventada
         Text(
@@ -96,17 +114,20 @@ fun SongRow(
 }
 
 /**
- * Acciones del MENÚ CONTEXTUAL de gestión (FASE 8.6, PLAN 8.6). Se reciben
- * YA decididas por la pantalla (biblioteca); aquí solo se renderizan.
+ * Acciones del menú de gestión (FASES 8.6/8.7). Se reciben desde la pantalla
+ * de biblioteca; aquí solo se renderizan.
  */
 data class SongRowMenu(
     /** Abre el detalle de la canción (bottom sheet de 8.5). */
     val onInformation: () -> Unit,
     /** Pide SIMPLE el borrado (la ConfirmDialog vive en la pantalla). */
     val onDelete: () -> Unit,
+    /** Solicita la comprobación bajo demanda del archivo asociado. */
+    val onCheckFile: () -> Unit,
+    val isCheckingFile: Boolean = false,
 )
 
-/** Menú "⋮" con las 4 acciones del PLAN 8.6 (Reproducir/playlist inoperantes hoy). */
+/** Menú "⋮" de la biblioteca; reproducción y playlists siguen inoperantes. */
 @Composable
 fun SongMenuButton(actions: SongRowMenu) {
     var expanded by remember { mutableStateOf(false) }
@@ -133,6 +154,24 @@ fun SongMenuButton(actions: SongRowMenu) {
                 text = { Text(stringResource(R.string.song_menu_add_playlist)) },
                 onClick = { expanded = false },
                 enabled = false, // playlists: FASE 10
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (actions.isCheckingFile) {
+                                R.string.song_menu_checking_file
+                            } else {
+                                R.string.song_menu_check_file
+                            },
+                        ),
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    actions.onCheckFile()
+                },
+                enabled = !actions.isCheckingFile,
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.song_menu_information)) },
@@ -163,6 +202,7 @@ fun SongList(
     songs: List<Song>,
     onSongClick: ((Song) -> Unit)? = null,
     menuFactory: ((Song) -> SongRowMenu)? = null,
+    fileAvailability: Map<String, SongFileAvailability> = emptyMap(),
 ) {
     LazyColumn {
         items(songs, key = { it.uri }) { song ->
@@ -170,10 +210,21 @@ fun SongList(
                 song = song,
                 onSongClick = onSongClick,
                 menu = menuFactory?.let { factory -> { SongMenuButton(factory(song)) } },
+                fileAvailability = fileAvailability[song.uri],
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
+
     }
+}
+
+@Composable
+private fun fileAvailabilityLabel(availability: SongFileAvailability): String = when (availability) {
+    SongFileAvailability.CHECKING -> stringResource(R.string.song_file_checking)
+    SongFileAvailability.AVAILABLE -> stringResource(R.string.song_file_available)
+    SongFileAvailability.MISSING -> stringResource(R.string.song_file_missing)
+    SongFileAvailability.INACCESSIBLE -> stringResource(R.string.song_file_inaccessible)
+    SongFileAvailability.INVALID -> stringResource(R.string.song_file_invalid)
 }
 
 /**

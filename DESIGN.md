@@ -58,6 +58,7 @@ flowchart LR
 ## 3.2 Library
 
 - Lista de canciones con portada, título, artista, duración. Barra de búsqueda, orden, filtros (artista/álbum). Acción: reproducir, añadir a playlist, eliminar.
+- La disponibilidad del archivo se comprueba bajo demanda por canción. Mostrar estados de comprobación, archivo disponible, ausente, sin acceso o no válido; una comprobación nunca elimina el registro ni el archivo físico.
 - Estados: Loading · Empty («Tu biblioteca está vacía» + CTA) · Error (acceso a datos fallido, con reintento) · Success. Operaciones masivas → estado Processing.
 
 ## 3.3 Playlists

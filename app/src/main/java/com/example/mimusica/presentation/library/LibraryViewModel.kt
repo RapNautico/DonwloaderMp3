@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mimusica.domain.importing.ImportReport
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
+import com.example.mimusica.domain.repository.SongFileValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +38,7 @@ sealed interface ImportState {
 class LibraryViewModel(
     private val importAudioUseCase: com.example.mimusica.domain.importing.ImportAudioUseCase,
     private val songRepository: SongRepository,
+    songFileValidator: SongFileValidator,
 ) : ViewModel() {
 
     private val songs = MutableStateFlow<List<Song>>(emptyList())
@@ -58,6 +61,10 @@ class LibraryViewModel(
      * FUTUROS del plan 8.6: todavía NO tienen lógica aquí ni en la UI.
      */
     private val managerModel = LibraryManagerModel(songRepository)
+    private val fileCheckModel = LibraryFileCheckModel(songFileValidator)
+
+    /** Estado por URI de la última comprobación explícita de archivo. */
+    val fileAvailability: StateFlow<Map<String, SongFileAvailability>> = fileCheckModel.availability
 
     /** true mientras hay una eliminación en curso. */
     val manageBusy: StateFlow<Boolean> = managerModel.busy
@@ -68,6 +75,11 @@ class LibraryViewModel(
     /** Decide ya CONFIRMADA por el usuario (ConfirmDialog); lanza en VM scope. */
     fun deleteLibrarySong(uri: String) {
         viewModelScope.launch { managerModel.deleteSong(uri) }
+    }
+
+    /** Comprueba una URI fuera del hilo principal; no modifica Room ni el archivo. */
+    fun checkLibrarySongFile(uri: String) {
+        viewModelScope.launch { fileCheckModel.check(uri) }
     }
 
     // ---------- Búsqueda y orden (FASE 8.3) ----------
@@ -95,6 +107,7 @@ class LibraryViewModel(
         viewModelScope.launch {
             songRepository.observeLibrary().collect { list ->
                 songs.value = list
+                fileCheckModel.retainSongs(list.mapTo(mutableSetOf()) { it.uri })
                 _isLoading.value = false
             }
         }

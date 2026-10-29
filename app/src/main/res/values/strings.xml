@@ -60,7 +60,14 @@
     <string name="song_menu_play">Reproducir</string>
     <string name="song_menu_add_playlist">Añadir a playlist</string>
     <string name="song_menu_information">Información</string>
+    <string name="song_menu_check_file">Comprobar archivo</string>
+    <string name="song_menu_checking_file">Comprobando archivo…</string>
     <string name="song_menu_delete">Eliminar de biblioteca</string>
+    <string name="song_file_checking">Comprobando archivo…</string>
+    <string name="song_file_available">Archivo disponible</string>
+    <string name="song_file_missing">Archivo ausente</string>
+    <string name="song_file_inaccessible">Sin acceso al archivo</string>
+    <string name="song_file_invalid">Formato no compatible o archivo no válido</string>
     <string name="delete_dialog_title">¿Eliminar de la biblioteca?</string>
     <string name="delete_dialog_message">«%1$s» se quitará de tu biblioteca. El archivo no se borra del dispositivo.</string>
     <string name="action_cancel">Cancelar</string>

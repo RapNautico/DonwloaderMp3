@@ -760,11 +760,19 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 
 ## D8.7 Gestión de canciones (FASE 8.6, 2026-10-29)
 
-- **Alcance EXACTO del plan 8.6**: menú contextual por canción con cuatro acciones. «Reproducir» y «Añadir a playlist» son ítems presentes e INOPERANTES (`enabled=false`, callbacks por refuerzo identificados para FASE 9/10) — sin Media3 ni tabla de playlists en el classpath. «Información» reutiliza el detalle de 8.5. «Eliminar de biblioteca» es la única activa.
+- **Alcance EXACTO del plan 8.6**: menú contextual por canción con cuatro acciones. «Reproducir» y «Añadir a playlist» son ítems presentes e INOPERANTES (`enabled=false`, callbacks por refuerzo identificados para FASE 9/10) — sin Media3 ni tabla de playlists en el classpath. «Información» reutiliza el detalle de 8.5. «Eliminar de biblioteca» es la única acción de gestión activa; la comprobación del archivo se añade en D8.8.
 - **Eliminación = SOLO registro Room** (D8.3 ratificada): llega a `deleteSong(uri)` (contrato 8.2, existente) SOLO tras el `AlertDialog` de confirmación, cuyo texto dice explícitamente «El archivo no se borra del dispositivo»; el borrado físico sigue sin implementarse (acción futura separada con aprobación, ARCHITECTURE D8.3).
 - **Concurrencia y errores**: una eliminación a la vez (`LibraryManagerModel.busy`; segunda llamada concurrente se ignora); fallo → `manageError` → banner errorContainer SIN borrar la lista, limpiado por el siguiente éxito (política 8.3/8.4). La SINCRONIZACIÓN lista↔Room es 100 % reactiva con los Flows ya existentes (biblioteca completa, búsqueda, resúmenes de artista/álbum): el modelo no recarga nada.
 - **Ubicación del menú**: solo en la biblioteca (`SongList(menuFactory=...)`); los detalles de artista/álbum (8.4) conservan filas simples — la distribución final de gestión se reevalúa en 8.8 (Tabs), sin inventar alcance.
 - **Sin cambios de esquema ni dependencias**; pruebas JVM directas de `LibraryManagerModel` (5 casos).
+
+## D8.8 Disponibilidad de archivos (FASE 8.7)
+
+- La comprobación es **bajo demanda por canción** desde el menú de biblioteca; nunca se recorren archivos al iniciar la app. Reutiliza el `ContentResolver` y `AudioMetadataReader.streamFormat`/`MediaExtractor` sobre la URI SAF y sus permisos persistibles existentes, siempre en `Dispatchers.IO`. Abrir el descriptor primero distingue falta de archivo/permiso de un error al analizar el stream.
+- Los resultados viven solo en estado de presentación, por URI (no cambian `Song`, Room ni el esquema): disponible, ausente (`FileNotFoundException`), inaccesible (permiso revocado o fallo I/O/proveedor al abrir) y no válido (URI/formato/estructura sin pista de audio admitida, o error I/O al analizarla). Una URI se vuelve a comprobar explícitamente para actualizar el estado.
+- El análisis valida el contenedor y las pistas expuestas por `MediaExtractor`; no decodifica el archivo completo, por lo que no promete detectar corrupción posterior dentro del flujo de audio.
+- Ningún resultado elimina registros ni archivos. La retirada de un registro continúa siendo una acción manual separada, con la confirmación existente de D8.7; los estados se descartan al salir la URI de la biblioteca.
+- Sin permisos, dependencias, migraciones ni cambios a los contratos de `domain/source/*` o `domain/download/*`.
 
 ---
 

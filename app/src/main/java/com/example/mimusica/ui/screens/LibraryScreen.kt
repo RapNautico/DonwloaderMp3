@@ -52,6 +52,7 @@ import com.example.mimusica.components.EmptyState
 import com.example.mimusica.components.SongList
 import com.example.mimusica.components.SongRowMenu
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
@@ -65,7 +66,7 @@ import com.example.mimusica.presentation.library.LibraryViewModel
  * anidadas de artistas/álbumes viven en MiMusicaApp (grafo "library"):
  * las Tabs definitivas Canciones/Artistas/Álbumes llegan en 8.8.
  * FASE 8.5: [onOpenSong] abre el DETALLE (bottom sheet) de una canción.
- * (El menú contextual de gestión llega en 8.6.)
+ * (El menú de gestión llega en 8.6; la comprobación de archivos en 8.7.)
  *
  * La actividad no conoce Room: solo usa `LibraryViewModel` (Domain).
  */
@@ -88,6 +89,7 @@ fun LibraryScreen(
     // Gestión (FASE 8.6): ConfirmDialog obligatorio ANTES de eliminar.
     val manageBusy by viewModel.manageBusy.collectAsState()
     val manageError by viewModel.manageError.collectAsState()
+    val fileAvailability by viewModel.fileAvailability.collectAsState()
     var pendingDelete by remember { mutableStateOf<Song?>(null) }
     var pendingUris by remember { mutableStateOf<List<String>?>(null) }
 
@@ -194,12 +196,15 @@ fun LibraryScreen(
                 else -> SongList(
                     visibleSongs,
                     onSongClick = { song -> onOpenSong(song.uri) },
+                    fileAvailability = fileAvailability,
                     menuFactory = { song ->
                         SongRowMenu(
                             onInformation = { onOpenSong(song.uri) },
                             // "Eliminar" NUNCA llega al repositorio sin pasar
                             // por el ConfirmDialog: se encola la decisión:
                             onDelete = { pendingDelete = song },
+                            onCheckFile = { viewModel.checkLibrarySongFile(song.uri) },
+                            isCheckingFile = fileAvailability[song.uri] == SongFileAvailability.CHECKING,
                         )
                     },
                 )

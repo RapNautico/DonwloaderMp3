@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.mimusica.data.audio.ArtworkStore
 import com.example.mimusica.data.audio.AudioMetadataReader
 import com.example.mimusica.data.audio.SafAudioImporter
+import com.example.mimusica.data.audio.SafSongFileValidator
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.importing.ImportAudioUseCase
@@ -34,6 +35,7 @@ class AppContainer(private val app: Application) {
     // Importación (FASE 5)
     private val metadataReader by lazy { AudioMetadataReader(app) }
     private val artworkStore by lazy { ArtworkStore(app) }
+    private val songFileValidator by lazy { SafSongFileValidator(app, metadataReader) }
     val audioImporter: SafAudioImporter by lazy {
         SafAudioImporter(app, metadataReader, artworkStore)
     }
@@ -46,7 +48,7 @@ class AppContainer(private val app: Application) {
     private fun createViewModelFactory(): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                LibraryViewModel(importAudioUseCase, songRepository)
+                LibraryViewModel(importAudioUseCase, songRepository, songFileValidator)
             }
             initializer {
                 ArtistsViewModel(songRepository)
