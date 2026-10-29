@@ -7,6 +7,7 @@ import com.example.mimusica.data.db.toSong
 import com.example.mimusica.domain.model.AlbumSummary
 import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -52,7 +53,24 @@ class SongRepositoryImpl(
     }
 
     override fun observeLibrary(): Flow<List<Song>> =
-        dao.observeAll().map { rows -> rows.map { it.toSong() } }
+        observeLibrary(SongSort.TITLE_ASC)
+
+    /**
+     * FASE 8.3: orden dedicado en SQL por variante (consultas explícitas del
+     * DAO, sin magia dinámica); cada flujo ya viene estable con desempate uri.
+     */
+    override fun observeLibrary(sortedBy: SongSort): Flow<List<Song>> {
+        val flow = when (sortedBy) {
+            SongSort.TITLE_ASC -> dao.observeAll()
+            SongSort.TITLE_DESC -> dao.observeAllTitleDesc()
+            SongSort.ARTIST_ASC -> dao.observeAllArtistAsc()
+            SongSort.ALBUM_ASC -> dao.observeAllAlbumAsc()
+            SongSort.DATE_ADDED_DESC -> dao.observeAllDateAddedDesc()
+            SongSort.DATE_ADDED_ASC -> dao.observeAllDateAddedAsc()
+            SongSort.DURATION_DESC -> dao.observeAllDurationDesc()
+        }
+        return flow.map { rows -> rows.map { it.toSong() } }
+    }
 
     override fun observeRecentSongs(limit: Int): Flow<List<Song>> =
         dao.observeRecent(limit).map { rows -> rows.map { it.toSong() } }

@@ -16,17 +16,24 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -47,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
+import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
 
@@ -63,8 +71,10 @@ fun LibraryScreen() {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
     val library by viewModel.library.collectAsState()
+    val visibleSongs by viewModel.visibleSongs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val importState by viewModel.importState.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
     var pendingUris by remember { mutableStateOf<List<String>?>(null) }
 
     // El permiso persistible SE PIDE en el contexto de la actividad (tras el pick).
@@ -110,6 +120,15 @@ fun LibraryScreen() {
                 ImportState.Idle -> Unit
             }
 
+            // Búsqueda + orden (FASE 8.3, DESIGN_SYSTEM §6.3: SearchBar full-width,
+            // debounce en el ViewModel, "≡" de orden bajo la búsqueda):
+            SearchField(
+                query = searchQuery,
+                onQueryChange = viewModel::onSearchQueryChange,
+                onClear = viewModel::clearSearch,
+            )
+            SortMenu(onSortChange = viewModel::onSortChange)
+
             when {
                 isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -123,7 +142,17 @@ fun LibraryScreen() {
                     )
                 }
 
-                else -> SongList(library)
+                searchQuery.isNotBlank() && visibleSongs.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        EmptyState(
+                            icon = Icons.Filled.Search,
+                            title = stringResource(R.string.library_search_no_results_title),
+                            description = stringResource(R.string.library_search_no_results_description),
+                        )
+                    }
+                }
+
+                else -> SongList(visibleSongs)
             }
         }
     }
@@ -263,4 +292,80 @@ private fun formatDuration(durationMs: Long): String {
     if (durationMs <= 0) return "--:--"
     val total = durationMs / 1000
     return "%d:%02d".format(total / 60, total % 60)
+}
+
+/**
+ * Campo de búsqueda full-width (FASE 8.3). El filtrado REAL ocurre en el
+ * ViewModel (debounce 300 ms + SQL); aquí solo se edita la consulta y se
+ * ofrece el borrado. La caja final de M3 SearchBar (`DockedSearchBar`) se
+ * ajustará en 8.8; el comportamiento funcional es el definitivo.
+ */
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        singleLine = true,
+        placeholder = { Text(stringResource(R.string.library_search_hint)) },
+        leadingIcon = {
+            Icon(Icons.Filled.Search, contentDescription = null)
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = onClear) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.library_search_clear),
+                    )
+                }
+            }
+        },
+        shape = MaterialTheme.shapes.large,
+    )
+}
+
+/** Selector de orden "≡" (FASE 8.3): Título A-Z/Z-A, Artista, Álbum, Recientes, Duración. */
+@Composable
+private fun SortMenu(
+    onSortChange: (SongSort) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.padding(horizontal = 16.dp)) {
+        TextButton(onClick = { expanded = true }) {
+            Text(stringResource(R.string.library_sort_label))
+            Icon(
+                Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            SongSort.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(sortLabel(option)) },
+                    onClick = {
+                        onSortChange(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun sortLabel(sort: SongSort): String = when (sort) {
+    SongSort.TITLE_ASC -> stringResource(R.string.library_sort_title_asc)
+    SongSort.TITLE_DESC -> stringResource(R.string.library_sort_title_desc)
+    SongSort.ARTIST_ASC -> stringResource(R.string.library_sort_artist_asc)
+    SongSort.ALBUM_ASC -> stringResource(R.string.library_sort_album_asc)
+    SongSort.DATE_ADDED_DESC -> stringResource(R.string.library_sort_recent_first)
+    SongSort.DATE_ADDED_ASC -> stringResource(R.string.library_sort_oldest_first)
+    SongSort.DURATION_DESC -> stringResource(R.string.library_sort_duration_desc)
 }

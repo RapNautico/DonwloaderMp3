@@ -3,6 +3,7 @@ package com.example.mimusica.domain.repository
 import com.example.mimusica.domain.model.AlbumSummary
 import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSort
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -38,6 +39,13 @@ interface SongRepository {
 
     /** Observación reactiva de la biblioteca ordenada por título (A→Z, desempate por uri). */
     fun observeLibrary(): Flow<List<Song>>
+
+    /**
+     * Observación reactiva de la biblioteca con el orden seleccionado (FASE 8.3).
+     * La ordenación es SIEMPRE en SQL (nunca re-ordenar la lista completa en
+     * memoria desde la UI) y con desempate estable por uri.
+     */
+    fun observeLibrary(sortedBy: SongSort): Flow<List<Song>>
 
     /** Observación reactiva de las canciones RECIENTES por dateAddedMs (más nuevas primero). */
     fun observeRecentSongs(limit: Int): Flow<List<Song>>

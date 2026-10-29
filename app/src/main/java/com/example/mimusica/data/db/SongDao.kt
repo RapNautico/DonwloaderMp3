@@ -64,6 +64,44 @@ interface SongDao {
     @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC, uri ASC")
     fun observeAll(): Flow<List<SongEntity>>
 
+    /**
+     * Ordenes dedicados de FASE 8.3: la ordenación SIEMPRE en SQL con desempate
+     * estable por uri (nunca se re-ordena una lista completa en memoria desde
+     * la UI). Sin índices añadidos: title/artist/album/dateAddedMs ya existen
+     * (v3); durationMs se usa solo en este orden puntual.
+     * En artista/álbum el bucket UNKNOWN va al FINAL (coherente con los
+     * resúmenes D8.3) mediante CASE WHEN.
+     */
+    @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE DESC, uri ASC")
+    fun observeAllTitleDesc(): Flow<List<SongEntity>>
+
+    @Query(
+        """
+        SELECT * FROM songs
+        ORDER BY CASE WHEN artist IS NULL THEN 1 ELSE 0 END,
+                 artist COLLATE NOCASE ASC, title COLLATE NOCASE ASC, uri ASC
+        """
+    )
+    fun observeAllArtistAsc(): Flow<List<SongEntity>>
+
+    @Query(
+        """
+        SELECT * FROM songs
+        ORDER BY CASE WHEN album IS NULL THEN 1 ELSE 0 END,
+                 album COLLATE NOCASE ASC, title COLLATE NOCASE ASC, uri ASC
+        """
+    )
+    fun observeAllAlbumAsc(): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs ORDER BY dateAddedMs DESC, uri ASC")
+    fun observeAllDateAddedDesc(): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs ORDER BY dateAddedMs ASC, uri ASC")
+    fun observeAllDateAddedAsc(): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs ORDER BY durationMs DESC, uri ASC")
+    fun observeAllDurationDesc(): Flow<List<SongEntity>>
+
     /** Recientes: dateAddedMs DESC (índice dateAddedMs), con desempate por uri. */
     @Query("SELECT * FROM songs ORDER BY dateAddedMs DESC, uri ASC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<SongEntity>>

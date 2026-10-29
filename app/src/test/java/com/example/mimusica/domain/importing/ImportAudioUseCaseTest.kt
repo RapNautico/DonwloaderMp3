@@ -3,6 +3,8 @@
 import com.example.mimusica.domain.model.AlbumSummary
 import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSort
+import com.example.mimusica.domain.model.toComparator
 import com.example.mimusica.domain.repository.SongRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -51,6 +53,10 @@ class ImportAudioUseCaseTest {
         }
 
         override fun observeLibrary(): Flow<List<Song>> = flowOf(stored.toList())
+
+        override fun observeLibrary(sortedBy: SongSort): Flow<List<Song>> = flowOf(
+            stored.sortedWith(sortedBy.toComparator()),
+        )
 
         override fun observeRecentSongs(limit: Int): Flow<List<Song>> =
             flowOf(stored.sortedByDescending { it.dateAddedMs }.take(limit))
