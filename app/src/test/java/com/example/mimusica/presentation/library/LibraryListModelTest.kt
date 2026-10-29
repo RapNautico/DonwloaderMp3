@@ -126,6 +126,13 @@ class LibraryListModelTest {
     // ---------- debounce (requisito 1) ----------
 
     @Test
+    fun lista_visible_mantiene_loading_hasta_la_primera_emision() = runBlocking {
+        assertTrue(modelo.visibleSongs.value.isLoading)
+        esperarQuiescencia()
+        assertFalse(modelo.visibleSongs.value.isLoading)
+    }
+
+    @Test
     fun debounce_consulta_que_no_se_estabiliza_no_busca() = runBlocking {
         esperarQuiescencia()
         assertEquals(

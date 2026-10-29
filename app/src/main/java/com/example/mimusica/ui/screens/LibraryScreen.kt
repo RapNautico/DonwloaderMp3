@@ -10,21 +10,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.Alignment
@@ -49,6 +49,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
+import com.example.mimusica.components.LibraryLoadError
+import com.example.mimusica.components.LibraryLoadingSkeleton
 import com.example.mimusica.components.SongList
 import com.example.mimusica.components.SongRowMenu
 import com.example.mimusica.domain.model.Song
@@ -62,9 +64,8 @@ import com.example.mimusica.presentation.library.LibraryViewModel
  * Estados: loading, vacía (EmptyState + CTA), importando (progreso),
  * resultado (n añadidas / rechazadas) y error parcial comprensible.
  *
- * FASE 8.4: expone [onOpenArtists]/[onOpenAlbums] (top bar). Las rutas
- * anidadas de artistas/álbumes viven en MiMusicaApp (grafo "library"):
- * las Tabs definitivas Canciones/Artistas/Álbumes llegan en 8.8.
+ * FASE 8.8: las pestañas seleccionan Canciones/Artistas/Álbumes dentro del
+ * grafo existente; artistas y álbumes conservan sus resúmenes SQL.
  * FASE 8.5: [onOpenSong] abre el DETALLE (bottom sheet) de una canción.
  * (El menú de gestión llega en 8.6; la comprobación de archivos en 8.7.)
  *
@@ -73,17 +74,16 @@ import com.example.mimusica.presentation.library.LibraryViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
-    onOpenArtists: () -> Unit,
-    onOpenAlbums: () -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
     onOpenSong: (String) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
-    val library by viewModel.library.collectAsState()
+    val libraryState by viewModel.libraryState.collectAsState()
+    val library = libraryState.songs
     val visibleState by viewModel.visibleSongs.collectAsState()
     val visibleSongs = visibleState.songs
     val searchError by viewModel.searchError.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
     val importState by viewModel.importState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     // Gestión (FASE 8.6): ConfirmDialog obligatorio ANTES de eliminar.
@@ -102,6 +102,7 @@ fun LibraryScreen(
             pendingUris = uris.map { it.toString() }
         }
     }
+    val onImport = { pickerLauncher.launch(arrayOf("audio/*")) }
 
     // Consume URIs pendientes una vez (no re-importar al recomponer).
     LaunchedEffect(pendingUris) {
@@ -115,25 +116,14 @@ fun LibraryScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library)) },
-                actions = {
-                    // FASE 8.4: exploración por artistas/álbumes (rutas anidadas).
-                    IconButton(onClick = onOpenArtists) {
-                        Icon(
-                            Icons.Filled.Person,
-                            contentDescription = stringResource(R.string.library_open_artists),
-                        )
-                    }
-                    IconButton(onClick = onOpenAlbums) {
-                        Icon(
-                            Icons.Filled.Album,
-                            contentDescription = stringResource(R.string.library_open_albums),
-                        )
-                    }
-                    IconButton(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) {
-                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.library_add_music))
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onImport,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text(stringResource(R.string.library_add_music)) },
             )
         },
     ) { innerPadding ->
@@ -142,6 +132,8 @@ fun LibraryScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            LibrarySectionTabs(LibraryTab.SONGS, onSelectTab)
+
             when (val import = importState) {
                 is ImportState.Running -> ImportProgressBanner(import.current, import.total)
                 is ImportState.Done -> ImportResultBanner(import.report)
@@ -171,17 +163,25 @@ fun LibraryScreen(
             SortMenu(onSortChange = viewModel::onSortChange)
 
             when {
-                isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
+                libraryState.error != null && library.isEmpty() -> LibraryLoadError(
+                    onRetry = viewModel::retryLibraryLoad,
+                )
+
+                libraryState.isLoading && library.isEmpty() -> LibraryLoadingSkeleton()
+
+                visibleState.isLoading -> LibraryLoadingSkeleton()
 
                 library.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState(
                         icon = Icons.Filled.MusicNote,
                         title = stringResource(R.string.library_empty_title),
                         description = stringResource(R.string.library_empty_description),
+                        ctaTextRes = R.string.library_add_music,
+                        onCtaClick = onImport,
                     )
                 }
+
+                searchQuery.trim() != visibleState.query -> LibraryLoadingSkeleton()
 
                 searchQuery.isNotBlank() && visibleSongs.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -193,21 +193,25 @@ fun LibraryScreen(
                     }
                 }
 
-                else -> SongList(
-                    visibleSongs,
-                    onSongClick = { song -> onOpenSong(song.uri) },
-                    fileAvailability = fileAvailability,
-                    menuFactory = { song ->
-                        SongRowMenu(
-                            onInformation = { onOpenSong(song.uri) },
-                            // "Eliminar" NUNCA llega al repositorio sin pasar
-                            // por el ConfirmDialog: se encola la decisión:
-                            onDelete = { pendingDelete = song },
-                            onCheckFile = { viewModel.checkLibrarySongFile(song.uri) },
-                            isCheckingFile = fileAvailability[song.uri] == SongFileAvailability.CHECKING,
-                        )
-                    },
-                )
+                else -> {
+                    if (libraryState.error != null) {
+                        LibraryLoadErrorBanner(onRetry = viewModel::retryLibraryLoad)
+                    }
+                    SongList(
+                        visibleSongs,
+                        onSongClick = { song -> onOpenSong(song.uri) },
+                        fileAvailability = fileAvailability,
+                        menuFactory = { song ->
+                            SongRowMenu(
+                                onInformation = { onOpenSong(song.uri) },
+                                // La eliminación siempre requiere confirmación.
+                                onDelete = { pendingDelete = song },
+                                onCheckFile = { viewModel.checkLibrarySongFile(song.uri) },
+                                isCheckingFile = fileAvailability[song.uri] == SongFileAvailability.CHECKING,
+                            )
+                        },
+                    )
+                }
             }
         }
     }
@@ -349,40 +353,70 @@ private fun ManageErrorBanner() {
 }
 
 /**
- * Campo de búsqueda full-width (FASE 8.3). El filtrado REAL ocurre en el
- * ViewModel (debounce 500 ms + SQL); aquí solo se edita la consulta y se
- * ofrece el borrado. La caja final de M3 SearchBar (`DockedSearchBar`) se
- * ajustará en 8.8; el comportamiento funcional es el definitivo.
+ * SearchBar full-width (FASE 8.8). El filtrado REAL ocurre en el ViewModel
+ * (debounce 500 ms + SQL); el campo no abre resultados de sugerencias porque
+ * la lista filtrada permanece en la pantalla.
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
+    val searchBarState = rememberSearchBarState()
+    SearchBar(
+        state = searchBarState,
+        inputField = {
+            SearchBarDefaults.InputField(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = onQueryChange,
+                expanded = false,
+                onExpandedChange = {},
+                placeholder = { Text(stringResource(R.string.library_search_hint)) },
+                leadingIcon = {
+                    Icon(Icons.Filled.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = onClear) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.library_search_clear),
+                            )
+                        }
+                    }
+                },
+            )
+        },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        singleLine = true,
-        placeholder = { Text(stringResource(R.string.library_search_hint)) },
-        leadingIcon = {
-            Icon(Icons.Filled.Search, contentDescription = null)
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClear) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.library_search_clear),
-                    )
-                }
-            }
-        },
-        shape = MaterialTheme.shapes.large,
     )
+}
+
+@Composable
+private fun LibraryLoadErrorBanner(onRetry: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+    ) {
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.library_load_error_description),
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            TextButton(onClick = onRetry) {
+                Text(stringResource(R.string.action_retry))
+            }
+        }
+    }
 }
 
 /** Selector de orden "≡" (FASE 8.3): Título A-Z/Z-A, Artista, Álbum, Recientes, Duración. */

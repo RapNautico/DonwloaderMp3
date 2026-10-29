@@ -11,11 +11,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -49,6 +52,8 @@ class LibraryListModel(
     data class VisibleSongs(
         val songs: List<Song>,
         val error: String?,
+        val query: String = "",
+        val isLoading: Boolean = true,
     )
 
     /** Consulta tal cual la escribe el usuario (el trim aplica al consultar). */
@@ -67,6 +72,8 @@ class LibraryListModel(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val refreshRequests = MutableStateFlow(0)
+
     fun startIn(scope: CoroutineScope) {
         pipeline(scope)
     }
@@ -83,28 +90,38 @@ class LibraryListModel(
         _query.value = ""
     }
 
+    /** Reinicia la consulta activa, por ejemplo tras recuperar un fallo de Room. */
+    fun refresh() {
+        refreshRequests.update { it + 1 }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
     private fun pipeline(scope: CoroutineScope) {
-        combine(_query, _sort) { query, sort -> query.trim() to sort }
+        combine(_query, _sort, refreshRequests) { query, sort, _ -> query.trim() to sort }
             .debounce(searchDebounceMs)
             .flatMapLatest { (trimmed, sort) ->
-                if (trimmed.isEmpty()) {
-                    songRepository.observeLibrary(sort).map { lista ->
-                        VisibleSongs(lista, null)
-                    }
-                } else {
-                    kotlinx.coroutines.flow.flow {
-                        val outcome = runCatching {
-                            songRepository.searchSongs(trimmed)
-                                .sortedWith(sort.toComparator())
-                        }
-                        emit(
-                            outcome.fold(
-                                onSuccess = { lista -> VisibleSongs(lista, null) },
-                                onFailure = { fallo ->
-                                    // La lista previa NO se borra (estado visible + error):
-                                    VisibleSongs(_visibleSongs.value.songs, fallo.message)
+                kotlinx.coroutines.flow.flow {
+                    try {
+                        if (trimmed.isEmpty()) {
+                            emitAll(
+                                songRepository.observeLibrary(sort).map { lista ->
+                                    VisibleSongs(lista, null, trimmed, isLoading = false)
                                 },
+                            )
+                        } else {
+                            val lista = songRepository.searchSongs(trimmed)
+                                .sortedWith(sort.toComparator())
+                            emit(VisibleSongs(lista, null, trimmed, isLoading = false))
+                        }
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        emit(
+                            VisibleSongs(
+                                songs = _visibleSongs.value.songs,
+                                error = failure.message ?: failure::class.simpleName ?: "Error",
+                                query = trimmed,
+                                isLoading = false,
                             ),
                         )
                     }

@@ -3,6 +3,7 @@ package com.example.mimusica.presentation.library
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.repository.SongRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,18 +60,28 @@ class GroupSummariesModel<T>(
     private val _items = MutableStateFlow<List<T>>(emptyList())
     val items: StateFlow<List<T>> = _items.asStateFlow()
 
+    private var observationJob: Job? = null
+
     fun startIn(scope: CoroutineScope) {
-        summaries
+        observationJob?.cancel()
+        observationJob = summaries
             .onEach { lista ->
                 _loading.value = false
                 _error.value = null
                 _items.value = lista
             }
             .catch { fallo ->
+                if (fallo is kotlinx.coroutines.CancellationException) throw fallo
                 _loading.value = false
-                _error.value = fallo.message ?: "error desconocido"
+                _error.value = fallo.message ?: fallo::class.simpleName ?: "Error"
             }
             .launchIn(scope)
+    }
+
+    fun retryIn(scope: CoroutineScope) {
+        _loading.value = true
+        _error.value = null
+        startIn(scope)
     }
 }
 

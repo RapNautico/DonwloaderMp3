@@ -3,6 +3,9 @@
     <string name="app_name">Mi Música</string>
     <string name="home">Inicio</string>
     <string name="library">Biblioteca</string>
+    <string name="library_tab_songs">Canciones</string>
+    <string name="library_tab_artists">Artistas</string>
+    <string name="library_tab_albums">Álbumes</string>
     <string name="playlists">Playlists</string>
     <string name="downloads">Descargas</string>
     <string name="settings">Ajustes</string>
@@ -27,6 +30,9 @@
     <string name="library_search_no_results_title">Sin resultados</string>
     <string name="library_search_no_results_description">No hay canciones que coincidan con tu búsqueda.</string>
     <string name="library_search_error">No se pudo actualizar la lista de canciones. Prueba de nuevo.</string>
+    <string name="library_load_error_title">No se pudo cargar la biblioteca</string>
+    <string name="library_load_error_description">Comprueba el acceso al almacenamiento e inténtalo de nuevo.</string>
+    <string name="action_retry">Reintentar</string>
     <string name="library_sort_label">Orden</string>
     <string name="library_sort_title_asc">Título A-Z</string>
     <string name="library_sort_title_desc">Título Z-A</string>
@@ -62,6 +68,7 @@
     <string name="song_menu_information">Información</string>
     <string name="song_menu_check_file">Comprobar archivo</string>
     <string name="song_menu_checking_file">Comprobando archivo…</string>
+    <string name="song_artwork_description">Carátula de %1$s</string>
     <string name="song_menu_delete">Eliminar de biblioteca</string>
     <string name="song_file_checking">Comprobando archivo…</string>
     <string name="song_file_available">Archivo disponible</string>

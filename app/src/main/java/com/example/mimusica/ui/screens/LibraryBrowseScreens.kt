@@ -15,15 +15,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -42,6 +45,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
+import com.example.mimusica.components.LibraryLoadError
+import com.example.mimusica.components.LibraryLoadingSkeleton
 import com.example.mimusica.components.SongList
 import com.example.mimusica.presentation.library.AlbumsViewModel
 import com.example.mimusica.presentation.library.ArtistsViewModel
@@ -60,9 +65,30 @@ import com.example.mimusica.presentation.library.GroupDetailViewModel
  * siguiente éxito, misma política de 8.3) · Success.
  *
  * La navegación (rutas anidadas dentro del grafo "library") vive en
- * MiMusicaApp; las Tabs definitivas Canciones/Artistas/Álbumes de la
- * biblioteca llegan en 8.8 (DESIGN_SYSTEM §6).
+ * MiMusicaApp; las pestañas seleccionan los destinos existentes del grafo.
  */
+
+enum class LibraryTab(val route: String, val labelRes: Int) {
+    SONGS("library/songs", R.string.library_tab_songs),
+    ARTISTS("library/artists", R.string.library_tab_artists),
+    ALBUMS("library/albums", R.string.library_tab_albums),
+}
+
+@Composable
+fun LibrarySectionTabs(
+    selected: LibraryTab,
+    onSelect: (LibraryTab) -> Unit,
+) {
+    TabRow(selectedTabIndex = selected.ordinal) {
+        LibraryTab.entries.forEach { tab ->
+            Tab(
+                selected = selected == tab,
+                onClick = { onSelect(tab) },
+                text = { Text(stringResource(tab.labelRes)) },
+            )
+        }
+    }
+}
 
 // ---------- Listas de resúmenes ----------
 
@@ -72,6 +98,7 @@ import com.example.mimusica.presentation.library.GroupDetailViewModel
 fun ArtistsScreen(
     onBack: () -> Unit,
     onOpenArtist: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: ArtistsViewModel = viewModel(factory = container.viewModelFactory)
@@ -83,9 +110,11 @@ fun ArtistsScreen(
         title = stringResource(R.string.library_artists_title),
         onBack = onBack,
     ) {
-        GroupErrorBanner(error)
+        LibrarySectionTabs(LibraryTab.ARTISTS, onSelectTab)
+        GroupErrorBanner(error.takeIf { artists.isNotEmpty() }, viewModel::retry)
         when {
-            isLoading -> Centered { CircularProgressIndicator() }
+            isLoading && artists.isEmpty() -> LibraryLoadingSkeleton()
+            error != null && artists.isEmpty() -> LibraryLoadError(viewModel::retry)
             artists.isEmpty() -> Centered {
                 EmptyState(
                     icon = Icons.Filled.Person,
@@ -114,6 +143,7 @@ fun ArtistsScreen(
 fun AlbumsScreen(
     onBack: () -> Unit,
     onOpenAlbum: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: AlbumsViewModel = viewModel(factory = container.viewModelFactory)
@@ -125,9 +155,11 @@ fun AlbumsScreen(
         title = stringResource(R.string.library_albums_title),
         onBack = onBack,
     ) {
-        GroupErrorBanner(error)
+        LibrarySectionTabs(LibraryTab.ALBUMS, onSelectTab)
+        GroupErrorBanner(error.takeIf { albums.isNotEmpty() }, viewModel::retry)
         when {
-            isLoading -> Centered { CircularProgressIndicator() }
+            isLoading && albums.isEmpty() -> LibraryLoadingSkeleton()
+            error != null && albums.isEmpty() -> LibraryLoadError(viewModel::retry)
             albums.isEmpty() -> Centered {
                 EmptyState(
                     icon = Icons.Filled.Album,
@@ -302,18 +334,28 @@ private fun GroupRow(
 
 /** Banner de error (errorContainer) del mismo estilo que el de 8.3. */
 @Composable
-private fun GroupErrorBanner(error: String?) {
+private fun GroupErrorBanner(error: String?, onRetry: (() -> Unit)? = null) {
     if (error != null) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.errorContainer,
         ) {
-            Text(
-                text = stringResource(R.string.library_browse_error),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(16.dp),
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.library_browse_error),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                if (onRetry != null) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            }
         }
     }
 }

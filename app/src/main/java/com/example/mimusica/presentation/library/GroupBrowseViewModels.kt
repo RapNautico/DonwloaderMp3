@@ -19,6 +19,10 @@ class ArtistsViewModel(songRepository: SongRepository) : ViewModel() {
     val isLoading get() = model.isLoading
     val error get() = model.error
 
+    fun retry() {
+        model.retryIn(viewModelScope)
+    }
+
     init {
         model.startIn(viewModelScope)
     }
@@ -32,6 +36,10 @@ class AlbumsViewModel(songRepository: SongRepository) : ViewModel() {
     val albums get() = model.items // StateFlow<List<AlbumSummary>> (genérico tipado)
     val isLoading get() = model.isLoading
     val error get() = model.error
+
+    fun retry() {
+        model.retryIn(viewModelScope)
+    }
 
     init {
         model.startIn(viewModelScope)

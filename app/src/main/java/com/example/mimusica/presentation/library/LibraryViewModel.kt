@@ -3,7 +3,6 @@ package com.example.mimusica.presentation.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mimusica.domain.importing.ImportReport
-import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
@@ -41,17 +40,15 @@ class LibraryViewModel(
     songFileValidator: SongFileValidator,
 ) : ViewModel() {
 
-    private val songs = MutableStateFlow<List<Song>>(emptyList())
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
 
     private val importMutex = Mutex()
 
-    /** Canciones para la UI. */
-    val library: StateFlow<List<Song>> = songs.asStateFlow()
+    private val loadModel = LibraryLoadModel(songRepository)
+
+    /** Carga inicial, contenido y error de biblioteca son estados excluyentes explícitos. */
+    val libraryState: StateFlow<LibraryLoadState> = loadModel.state
 
     // ---------- Gestión: eliminar de biblioteca (FASE 8.6) ----------
 
@@ -82,6 +79,12 @@ class LibraryViewModel(
         viewModelScope.launch { fileCheckModel.check(uri) }
     }
 
+    /** Reintenta Room; el query visible también se vuelve a suscribir. */
+    fun retryLibraryLoad() {
+        loadModel.retryIn(viewModelScope)
+        listModel.refresh()
+    }
+
     // ---------- Búsqueda y orden (FASE 8.3) ----------
 
     /**
@@ -104,11 +107,10 @@ class LibraryViewModel(
     val searchError: StateFlow<String?> = listModel.error
 
     init {
+        loadModel.observeIn(viewModelScope)
         viewModelScope.launch {
-            songRepository.observeLibrary().collect { list ->
-                songs.value = list
-                fileCheckModel.retainSongs(list.mapTo(mutableSetOf()) { it.uri })
-                _isLoading.value = false
+            loadModel.state.collect { state ->
+                fileCheckModel.retainSongs(state.songs.mapTo(mutableSetOf()) { it.uri })
             }
         }
         listModel.startIn(viewModelScope)

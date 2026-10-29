@@ -37,6 +37,7 @@ import com.example.mimusica.ui.screens.ArtistsScreen
 import com.example.mimusica.ui.screens.DownloadsScreen
 import com.example.mimusica.ui.screens.HomeScreen
 import com.example.mimusica.ui.screens.LibraryScreen
+import com.example.mimusica.ui.screens.LibraryTab
 import com.example.mimusica.ui.screens.PlaylistsScreen
 import com.example.mimusica.ui.screens.SettingsScreen
 import com.example.mimusica.ui.screens.SongDetailScreen
@@ -108,8 +109,7 @@ fun MiMusicaApp() {
             navigation(startDestination = "library/songs", route = "library") {
                 composable("library/songs") {
                     LibraryScreen(
-                        onOpenArtists = { navController.navigate("library/artists") },
-                        onOpenAlbums = { navController.navigate("library/albums") },
+                        onSelectTab = { tab -> navigateLibraryTab(navController, tab) },
                         onOpenSong = { uri -> openSongDetail(navController, uri) },
                     )
                 }
@@ -117,12 +117,14 @@ fun MiMusicaApp() {
                     ArtistsScreen(
                         onBack = { navController.popBackStack() },
                         onOpenArtist = { name -> openGroup(navController, "library/artist", name) },
+                        onSelectTab = { tab -> navigateLibraryTab(navController, tab) },
                     )
                 }
                 composable("library/albums") {
                     AlbumsScreen(
                         onBack = { navController.popBackStack() },
                         onOpenAlbum = { name -> openGroup(navController, "library/album", name) },
+                        onSelectTab = { tab -> navigateLibraryTab(navController, tab) },
                     )
                 }
                 // nombre opcional en la ruta: ausente = bucket desconocido.
@@ -182,6 +184,14 @@ fun MiMusicaApp() {
             composable("downloads") { DownloadsScreen() }
             composable("settings") { SettingsScreen() }
         }
+    }
+}
+
+private fun navigateLibraryTab(navController: NavHostController, tab: LibraryTab) {
+    navController.navigate(tab.route) {
+        popUpTo("library/songs") { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }
 

@@ -71,7 +71,7 @@ fun SongRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Portada: la copia local si existe; placeholder del design system si no.
-        ArtworkThumbnail(song.artworkPath)
+        ArtworkThumbnail(song.artworkPath, title = song.title)
         Column(Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -80,8 +80,10 @@ fun SongRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = listOfNotNull(song.artist, song.album).joinToString(" · ")
-                    .ifEmpty { stringResource(R.string.library_unknown_artist) },
+                text = listOfNotNull(
+                    song.artist ?: stringResource(R.string.library_unknown_artist),
+                    song.album,
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -134,7 +136,7 @@ fun SongMenuButton(actions: SongRowMenu) {
     Box {
         IconButton(
             onClick = { expanded = true },
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(48.dp),
         ) {
             Icon(
                 Icons.Filled.MoreVert,
@@ -228,13 +230,11 @@ private fun fileAvailabilityLabel(availability: SongFileAvailability): String = 
 }
 
 /**
- * Miniatura de portada (FASE 5): placeholder SIEMPRE mientras no exista
- * decodificación de carátulas; la copia local (artworkPath) está lista para
- * FASE 9/10. FASE 8.5: parámetro opcional de tamaño para el detalle
- * (64 dp) mientras las filas siguen usando 40 dp.
+ * Marcador visual para portadas locales hasta implementar su decodificación.
+ * El tamaño predeterminado sigue el objetivo de 48 dp del sistema de diseño.
  */
 @Composable
-fun ArtworkThumbnail(path: String?, size: Dp = 40.dp) {
+fun ArtworkThumbnail(path: String?, size: Dp = 48.dp, title: String? = null) {
     Surface(
         modifier = Modifier.size(size),
         shape = MaterialTheme.shapes.small,
@@ -242,7 +242,9 @@ fun ArtworkThumbnail(path: String?, size: Dp = 40.dp) {
     ) {
         Icon(
             Icons.Filled.MusicNote,
-            contentDescription = null,
+            contentDescription = title?.let {
+                stringResource(R.string.song_artwork_description, it)
+            },
             modifier = Modifier.padding(size / 4),
         )
     }
