@@ -2,6 +2,7 @@ package com.example.mimusica.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,12 +12,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,15 +36,26 @@ import com.example.mimusica.R
 import com.example.mimusica.domain.model.Song
 
 /**
- * Fila de canción REUTILIZABLE (FASE 8.4, extraction de LibraryScreen).
+ * Fila de canción REUTILIZABLE (FASE 8.4, extracción de LibraryScreen).
  * La usan la lista de la biblioteca (8.3) y los detalles de artista/álbum.
  *
  * FASE 8.5: [onSongClick] abre el DETALLE de la canción (bottom sheet,
  * ruta `library/song?uri=...`). Cuando es null la fila NO es clicable
  * (comportamiento por defecto: la reproducción real llega en FASE 9).
+ *
+ * FASE 8.6: [menu] activa el MENÚ CONTEXTUAL de gestión (PLAN 8.6):
+ * Reproducir (Fase 9, inoperante), Añadir a playlist (Fase 10, inoperante),
+ * Información (abre el detalle 8.5) y Eliminar de biblioteca (requiere
+ * ConfirmDialog ANTES de llegar aquí). Cuando es null NO hay menú
+ * (detalles de artista/álbum: la gestión vive en la biblioteca por decidir
+ * del plan 8.8; no se inventa comportamiento extra).
  */
 @Composable
-fun SongRow(song: Song, onSongClick: ((Song) -> Unit)? = null) {
+fun SongRow(
+    song: Song,
+    onSongClick: ((Song) -> Unit)? = null,
+    menu: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -70,15 +90,87 @@ fun SongRow(song: Song, onSongClick: ((Song) -> Unit)? = null) {
             text = formatDuration(song.durationMs),
             style = MaterialTheme.typography.labelSmall,
         )
+        // Menú contextual "⋮" (FASE 8.6); solo cuando la pantalla lo activa.
+        menu?.invoke()
+    }
+}
+
+/**
+ * Acciones del MENÚ CONTEXTUAL de gestión (FASE 8.6, PLAN 8.6). Se reciben
+ * YA decididas por la pantalla (biblioteca); aquí solo se renderizan.
+ */
+data class SongRowMenu(
+    /** Abre el detalle de la canción (bottom sheet de 8.5). */
+    val onInformation: () -> Unit,
+    /** Pide SIMPLE el borrado (la ConfirmDialog vive en la pantalla). */
+    val onDelete: () -> Unit,
+)
+
+/** Menú "⋮" con las 4 acciones del PLAN 8.6 (Reproducir/playlist inoperantes hoy). */
+@Composable
+fun SongMenuButton(actions: SongRowMenu) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier.size(24.dp),
+        ) {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = stringResource(R.string.song_menu_actions),
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            // Callback POR REFUERZO para FASE 9 (PLAN 8.6): item presente e
+            // inoperante; sin lógica de reproducción (fuera de FASE 8).
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.song_menu_play)) },
+                onClick = { expanded = false },
+                enabled = false, // reproducción real: FASE 9
+            )
+            // Callback POR REFUERZO para FASE 10 (PLAN 8.6):
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.song_menu_add_playlist)) },
+                onClick = { expanded = false },
+                enabled = false, // playlists: FASE 10
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.song_menu_information)) },
+                onClick = {
+                    expanded = false
+                    actions.onInformation()
+                },
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(R.string.song_menu_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    actions.onDelete() // la pantalla exige ConfirmDialog
+                },
+            )
+        }
     }
 }
 
 /** Listado vertical de canciones con separadores (comportamiento estable por `uri`). */
 @Composable
-fun SongList(songs: List<Song>, onSongClick: ((Song) -> Unit)? = null) {
+fun SongList(
+    songs: List<Song>,
+    onSongClick: ((Song) -> Unit)? = null,
+    menuFactory: ((Song) -> SongRowMenu)? = null,
+) {
     LazyColumn {
         items(songs, key = { it.uri }) { song ->
-            SongRow(song, onSongClick)
+            SongRow(
+                song = song,
+                onSongClick = onSongClick,
+                menu = menuFactory?.let { factory -> { SongMenuButton(factory(song)) } },
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }

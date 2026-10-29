@@ -56,6 +56,16 @@
     <string name="song_detail_sample_rate">Frecuencia</string>
     <string name="song_detail_channels">Canales</string>
     <string name="song_detail_added">Añadido</string>
+    <string name="song_menu_actions">Acciones de la canción</string>
+    <string name="song_menu_play">Reproducir</string>
+    <string name="song_menu_add_playlist">Añadir a playlist</string>
+    <string name="song_menu_information">Información</string>
+    <string name="song_menu_delete">Eliminar de biblioteca</string>
+    <string name="delete_dialog_title">¿Eliminar de la biblioteca?</string>
+    <string name="delete_dialog_message">«%1$s» se quitará de tu biblioteca. El archivo no se borra del dispositivo.</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="library_delete_error">No se pudo eliminar la canción de la biblioteca.</string>
     <plurals name="library_song_count">
         <item quantity="one">%d canción</item>
         <item quantity="other">%d canciones</item>

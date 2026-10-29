@@ -758,6 +758,14 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 - **Sin cambios de esquema ni dependencias**: Room v3 intacta; ningún método nuevo en el repositorio.
 - **Pruebas**: 8 casos de `SongDetailModel` + helpers puros (JVM, `runBlocking` directo — el `load()` es suspend, sin Main): carga con nulls intactos, NotFound, uri nula/vacía sin consultar repo, error del repo sin crash, formato exacto de tamaño/bitrate/frecuencia. Sin `kotlinx-coroutines-test` (no autorizada).
 
+## D8.7 Gestión de canciones (FASE 8.6, 2026-10-29)
+
+- **Alcance EXACTO del plan 8.6**: menú contextual por canción con cuatro acciones. «Reproducir» y «Añadir a playlist» son ítems presentes e INOPERANTES (`enabled=false`, callbacks por refuerzo identificados para FASE 9/10) — sin Media3 ni tabla de playlists en el classpath. «Información» reutiliza el detalle de 8.5. «Eliminar de biblioteca» es la única activa.
+- **Eliminación = SOLO registro Room** (D8.3 ratificada): llega a `deleteSong(uri)` (contrato 8.2, existente) SOLO tras el `AlertDialog` de confirmación, cuyo texto dice explícitamente «El archivo no se borra del dispositivo»; el borrado físico sigue sin implementarse (acción futura separada con aprobación, ARCHITECTURE D8.3).
+- **Concurrencia y errores**: una eliminación a la vez (`LibraryManagerModel.busy`; segunda llamada concurrente se ignora); fallo → `manageError` → banner errorContainer SIN borrar la lista, limpiado por el siguiente éxito (política 8.3/8.4). La SINCRONIZACIÓN lista↔Room es 100 % reactiva con los Flows ya existentes (biblioteca completa, búsqueda, resúmenes de artista/álbum): el modelo no recarga nada.
+- **Ubicación del menú**: solo en la biblioteca (`SongList(menuFactory=...)`); los detalles de artista/álbum (8.4) conservan filas simples — la distribución final de gestión se reevalúa en 8.8 (Tabs), sin inventar alcance.
+- **Sin cambios de esquema ni dependencias**; pruebas JVM directas de `LibraryManagerModel` (5 casos).
+
 ---
 
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)

@@ -50,6 +50,26 @@ class LibraryViewModel(
     /** Canciones para la UI. */
     val library: StateFlow<List<Song>> = songs.asStateFlow()
 
+    // ---------- Gestión: eliminar de biblioteca (FASE 8.6) ----------
+
+    /**
+     * Eliminación SOLO del registro Room (D8.3, ConfirmDialog en la UI).
+     * Reproducir (FASE 9) y Añadir a playlist (FASE 10) son callbacks
+     * FUTUROS del plan 8.6: todavía NO tienen lógica aquí ni en la UI.
+     */
+    private val managerModel = LibraryManagerModel(songRepository)
+
+    /** true mientras hay una eliminación en curso. */
+    val manageBusy: StateFlow<Boolean> = managerModel.busy
+
+    /** Error de la última eliminación; null = sin error. */
+    val manageError: StateFlow<String?> = managerModel.error
+
+    /** Decide ya CONFIRMADA por el usuario (ConfirmDialog); lanza en VM scope. */
+    fun deleteLibrarySong(uri: String) {
+        viewModelScope.launch { managerModel.deleteSong(uri) }
+    }
+
     // ---------- Búsqueda y orden (FASE 8.3) ----------
 
     /**

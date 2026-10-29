@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,6 +50,8 @@ import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
 import com.example.mimusica.components.SongList
+import com.example.mimusica.components.SongRowMenu
+import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
@@ -82,6 +85,10 @@ fun LibraryScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val importState by viewModel.importState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    // Gestión (FASE 8.6): ConfirmDialog obligatorio ANTES de eliminar.
+    val manageBusy by viewModel.manageBusy.collectAsState()
+    val manageError by viewModel.manageError.collectAsState()
+    var pendingDelete by remember { mutableStateOf<Song?>(null) }
     var pendingUris by remember { mutableStateOf<List<String>?>(null) }
 
     // El permiso persistible SE PIDE en el contexto de la actividad (tras el pick).
@@ -146,6 +153,12 @@ fun LibraryScreen(
                 SearchErrorBanner()
             }
 
+            // Error de GESTIÓN (FASE 8.6): la eliminación falló; no crashea,
+            // el listado queda como estaba y se limpia con el próximo éxito.
+            if (manageError != null) {
+                ManageErrorBanner()
+            }
+
             // Búsqueda + orden (FASE 8.3, DESIGN_SYSTEM §6.3: SearchBar full-width,
             // debounce en el ViewModel, "≡" de orden bajo la búsqueda):
             SearchField(
@@ -178,9 +191,57 @@ fun LibraryScreen(
                     }
                 }
 
-                else -> SongList(visibleSongs, onSongClick = { song -> onOpenSong(song.uri) })
+                else -> SongList(
+                    visibleSongs,
+                    onSongClick = { song -> onOpenSong(song.uri) },
+                    menuFactory = { song ->
+                        SongRowMenu(
+                            onInformation = { onOpenSong(song.uri) },
+                            // "Eliminar" NUNCA llega al repositorio sin pasar
+                            // por el ConfirmDialog: se encola la decisión:
+                            onDelete = { pendingDelete = song },
+                        )
+                    },
+                )
             }
         }
+    }
+
+    // ConfirmDialog de eliminación (PLAN 8.6: SOLO registro Room; el archivo
+    // físico no se borra). Cancelar cierra sin cambios; Eliminar decidió ya.
+    pendingDelete?.let { cancion ->
+        AlertDialog(
+            onDismissRequest = { if (!manageBusy) pendingDelete = null },
+            title = { Text(stringResource(R.string.delete_dialog_title)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.delete_dialog_message, cancion.title),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDelete = null
+                        viewModel.deleteLibrarySong(cancion.uri)
+                    },
+                    enabled = !manageBusy,
+                ) {
+                    Text(
+                        stringResource(R.string.action_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingDelete = null },
+                    enabled = !manageBusy,
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -259,6 +320,22 @@ private fun SearchErrorBanner() {
     ) {
         Text(
             text = stringResource(R.string.library_search_error),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+/** Banner de fallo de GESTIÓN (8.6): mismo estilo; no borra la lista. */
+@Composable
+private fun ManageErrorBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+    ) {
+        Text(
+            text = stringResource(R.string.library_delete_error),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.padding(16.dp),
