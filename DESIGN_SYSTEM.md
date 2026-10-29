@@ -201,7 +201,7 @@ Material 3 usa preferentemente tonal elevation (superficies con tinte del primar
  └─────────────────────────────────────┘
 ```
 
-- Búsqueda activa → filtra por título/artista/álbum en vivo sobre la consulta Room con `Flow` (debounce 300 ms).
+- Búsqueda activa → filtra por título/artista/álbum en vivo sobre la consulta Room con `Flow` (debounce 500 ms).
 - Selección múltiple (long-press) solo si se hace de una vez en FASE 9; mantener fuera del MVP visual por decisión de simplificación.
 
 ## 6.4 Player (pantalla completa / bottom sheet expandible)

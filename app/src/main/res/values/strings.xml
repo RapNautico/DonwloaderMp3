@@ -26,6 +26,7 @@
     <string name="library_search_clear">Borrar búsqueda</string>
     <string name="library_search_no_results_title">Sin resultados</string>
     <string name="library_search_no_results_description">No hay canciones que coincidan con tu búsqueda.</string>
+    <string name="library_search_error">No se pudo actualizar la lista de canciones. Prueba de nuevo.</string>
     <string name="library_sort_label">Orden</string>
     <string name="library_sort_title_asc">Título A-Z</string>
     <string name="library_sort_title_desc">Título Z-A</string>

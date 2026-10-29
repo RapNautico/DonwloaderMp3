@@ -71,7 +71,9 @@ fun LibraryScreen() {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
     val library by viewModel.library.collectAsState()
-    val visibleSongs by viewModel.visibleSongs.collectAsState()
+    val visibleState by viewModel.visibleSongs.collectAsState()
+    val visibleSongs = visibleState.songs
+    val searchError by viewModel.searchError.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val importState by viewModel.importState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -118,6 +120,12 @@ fun LibraryScreen() {
                 is ImportState.Done -> ImportResultBanner(import.report)
                 is ImportState.Failed -> ImportErrorBanner(import.message)
                 ImportState.Idle -> Unit
+            }
+
+            // Error de búsqueda (FASE 8.3): banner errorContainer, no crashea
+            // ni borra la lista; se limpia solo al producirse un éxito.
+            if (searchError != null) {
+                SearchErrorBanner()
             }
 
             // Búsqueda + orden (FASE 8.3, DESIGN_SYSTEM §6.3: SearchBar full-width,
@@ -294,9 +302,24 @@ private fun formatDuration(durationMs: Long): String {
     return "%d:%02d".format(total / 60, total % 60)
 }
 
+@Composable
+private fun SearchErrorBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+    ) {
+        Text(
+            text = stringResource(R.string.library_search_error),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
 /**
  * Campo de búsqueda full-width (FASE 8.3). El filtrado REAL ocurre en el
- * ViewModel (debounce 300 ms + SQL); aquí solo se edita la consulta y se
+ * ViewModel (debounce 500 ms + SQL); aquí solo se edita la consulta y se
  * ofrece el borrado. La caja final de M3 SearchBar (`DockedSearchBar`) se
  * ajustará en 8.8; el comportamiento funcional es el definitivo.
  */
