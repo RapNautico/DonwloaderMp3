@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
@@ -44,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
@@ -58,6 +61,8 @@ import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
+import com.example.mimusica.presentation.playlist.PlaylistsViewModel
+import com.example.mimusica.domain.model.PlaylistSummary
 
 /**
  * Library (requisito FASE 5 §7): lista REAL de canciones Room.
@@ -77,9 +82,12 @@ fun LibraryScreen(
     onSelectTab: (LibraryTab) -> Unit,
     onOpenSong: (String) -> Unit,
     onPlaySongs: (List<Song>, String) -> Unit,
+    onOpenPlaylists: () -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
+    val playlistsViewModel: PlaylistsViewModel = viewModel(factory = container.viewModelFactory)
+    val playlistsState by playlistsViewModel.state.collectAsState()
     val libraryState by viewModel.libraryState.collectAsState()
     val library = libraryState.songs
     val visibleState by viewModel.visibleSongs.collectAsState()
@@ -92,6 +100,7 @@ fun LibraryScreen(
     val manageError by viewModel.manageError.collectAsState()
     val fileAvailability by viewModel.fileAvailability.collectAsState()
     var pendingDelete by remember { mutableStateOf<Song?>(null) }
+    var pendingPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var pendingUris by remember { mutableStateOf<List<String>?>(null) }
 
     // El permiso persistible SE PIDE en el contexto de la actividad (tras el pick).
@@ -156,6 +165,7 @@ fun LibraryScreen(
             if (manageError != null) {
                 ManageErrorBanner()
             }
+            playlistsState.operationError?.let { PlaylistOperationErrorBanner(it) }
 
             // Búsqueda + orden (FASE 8.3, DESIGN_SYSTEM §6.3: SearchBar full-width,
             // debounce en el ViewModel, "≡" de orden bajo la búsqueda):
@@ -208,6 +218,7 @@ fun LibraryScreen(
                         menuFactory = { song ->
                             SongRowMenu(
                                 onPlay = { onPlaySongs(visibleSongs, song.uri) },
+                                onAddToPlaylist = { pendingPlaylistSong = song },
                                 onInformation = { onOpenSong(song.uri) },
                                 // La eliminación siempre requiere confirmación.
                                 onDelete = { pendingDelete = song },
@@ -257,6 +268,93 @@ fun LibraryScreen(
             },
         )
     }
+
+    pendingPlaylistSong?.let { song ->
+        AddSongToPlaylistDialog(
+            songTitle = song.title,
+            playlists = playlistsState.playlists,
+            loadError = playlistsState.loadError,
+            onSelect = { playlistId ->
+                playlistsViewModel.addSong(playlistId, song.uri)
+                pendingPlaylistSong = null
+            },
+            onOpenPlaylists = {
+                pendingPlaylistSong = null
+                onOpenPlaylists()
+            },
+            onDismiss = { pendingPlaylistSong = null },
+        )
+    }
+}
+
+@Composable
+private fun AddSongToPlaylistDialog(
+    songTitle: String,
+    playlists: List<PlaylistSummary>,
+    loadError: String?,
+    onSelect: (Long) -> Unit,
+    onOpenPlaylists: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.playlist_add_song_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.playlist_add_song_message, songTitle))
+                if (loadError != null) {
+                    Text(
+                        text = loadError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else if (playlists.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.playlist_empty_description),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        items(playlists, key = { it.id }) { playlist ->
+                            TextButton(
+                                onClick = { onSelect(playlist.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = playlist.name,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    pluralStringResource(
+                                        R.plurals.playlist_song_count,
+                                        playlist.songCount,
+                                        playlist.songCount,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (playlists.isEmpty() && loadError == null) {
+                TextButton(onClick = onOpenPlaylists) {
+                    Text(stringResource(R.string.playlist_create))
+                }
+            } else {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+            }
+        },
+        dismissButton = {
+            if (playlists.isNotEmpty() || loadError != null) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+            }
+        },
+    )
 }
 
 @Composable
@@ -366,6 +464,21 @@ private fun ManageErrorBanner() {
     ) {
         Text(
             text = stringResource(R.string.library_delete_error),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun PlaylistOperationErrorBanner(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+    ) {
+        Text(
+            text = message,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.padding(16.dp),

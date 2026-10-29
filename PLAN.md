@@ -315,7 +315,7 @@ Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 de
 
 # FASE 9 — REPRODUCTOR
 
-Estado: 🟡 Implementación integrada; no se declara cerrada hasta validar los modos Repeat/Shuffle en un teléfono físico.
+Estado: ✅ COMPLETADA (implementación y validación física confirmadas por el usuario).
 
 Media3 fue evaluado y aprobado expresamente para esta fase: `androidx.media3:media3-exoplayer:1.11.1` y `androidx.media3:media3-session:1.11.1`. Se usa la pantalla completa de Navigation Compose elegida por el usuario; la UI no controla el reproductor subyacente.
 
@@ -340,17 +340,17 @@ UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 → archi
 
 ## 9.3 Fondo, sesión y energía
 
-- [x] MediaSession · servicio de reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · gestión de foco (ARCHITECTURE §3.1); pendiente de prueba manual en dispositivo.
+- [x] MediaSession · servicio de reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · gestión de foco (ARCHITECTURE §3.1); validación física confirmada por el usuario.
 - [x] Recuperación serializable de cola, índice, posición, `playWhenReady`, modos y orden shuffle tras recrear el servicio/proceso; snapshots v1 se restauran con modos predeterminados.
 - [x] Elección de `MediaSessionService` de Media3; permisos `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` declarados.
 
-Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel transmite estado; pruebas JVM y `assembleDebug` OK. En un teléfono Android 14 con una sola canción se validaron Repeat One y Repeat All con shuffle activado/desactivado, el fin en modo normal y la restauración de modos, canción, posición y estado pausado. Falta validar en dispositivo el ciclo shuffle con varias canciones; la suite `androidTest` aún no existe. La fase permanece abierta hasta completar esa validación y las comprobaciones manuales pendientes de notificación/lock screen.
+Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel transmite estado; 141 pruebas unitarias aprobadas, `assembleDebug` y `git diff --check` exitosos en la validación previa. El usuario confirma la validación física satisfactoria de reproducción local, cola, modo normal, Repeat One, Repeat All, Shuffle y sus combinaciones, controles de pantalla completa y MiniPlayer, notificación/sesión multimedia y restauración de canción, posición, estado y modos. FASE 9 cerrada con base en esa confirmación; no se repiten ni se atribuyen pruebas nuevas a esta revisión.
 
 ---
 
 # FASE 10 — PLAYLISTS
 
-Estado: ⬜ Pendiente
+Estado: ✅ Completada.
 
 Modelo (m:n con orden independiente por lista):
 
@@ -358,10 +358,15 @@ Modelo (m:n con orden independiente por lista):
 Playlist ──< PlaylistSong >── Song
 ```
 
-- Room: tablas `playlists` y `playlist_songs` (playlistId, songUri, position): una canción en varias listas; una lista con muchas canciones; el orden es propio de cada lista.
-- Funciones: crear, renombrar, eliminar, añadir/quitar canciones, reordenar, reproducir la lista completa o desde una canción concreta, mostrar cantidad, artwork representativo (portada de la primera canción; nunca inventado).
-- Migración Room a la SIGUIENTE versión libre (esquema actual v2; la v3 planeada para descargas quedó pausada con su fase — aquí se usará la numeración que toque al implementar).
-- Diseñar antes de implementar; FK/ON DELETE y posicionamiento final se documentarán en ARCHITECTURE.md al implementar.
+- [x] Modelo m:n Room `playlists` y `playlist_songs` con orden propio por lista; migración v3→v4 sin pérdida de canciones.
+- [x] Contratos Domain y repositorio de playlists reactivos; creación/renombrado/eliminación, añadir/quitar y reordenar miembros con validación de nombres/orden.
+- [x] Navegación y UI Material 3: listado, estados vacío/error, crear/renombrar/eliminar con confirmación, detalle, añadir desde biblioteca, reordenar y quitar canciones.
+- [x] Reproducción de toda la lista o desde una canción concreta mediante el Player existente; artwork de la primera canción existente.
+- [x] Validación final: suite completa (145 pruebas, 0 fallos), `assembleDebug` exitoso, `git diff --check` limpio y revisión del diff.
+
+Validación final: `LibraryLoadModelTest`, `PlaylistRepositoryTest` y `RoomMigrationTest` pasan; la suite completa registra 145 pruebas, 0 fallos, 0 errores y 0 omitidas. `assembleDebug` termina con `BUILD SUCCESSFUL`; `git diff --check` devuelve 0. El fallo inicial era una sincronización insuficiente del test: con un único elemento, cambiar el orden no cambiaba el resultado y la condición de espera podía aceptar el estado anterior antes de que `flatMapLatest` suscribiera la nueva consulta. El test ahora espera estados emitidos por Flow/StateFlow y una lista de varias canciones que demuestra el cambio de orden. No se modificó código de producción.
+
+Decisiones de persistencia (ARCHITECTURE §8.1): borrar playlist elimina en cascada solo sus relaciones; borrar una canción de la biblioteca elimina en cascada sus membresías; nunca se borra un archivo físico. `(playlistId, songUri)` es clave primaria, `position` es orden por playlist con desempate determinista por URI; el repositorio valida el conjunto completo antes de reordenar transaccionalmente. Nombres se recortan y no pueden quedar vacíos; se permiten nombres repetidos.
 
 ---
 
@@ -441,18 +446,18 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 8 — Biblioteca completa: 8.0 AUDITORÍA/DISEÑO AUTORIZADO y documentado (2026-10-28). Implementación por entregas 8.1→8.10 autorizada (ver sección FASE 8 para las decisiones aprobadas: género real + migración v3 + índices album/dateAddedMs + eliminación solo-registro + inválidos identificados bajo demanda). FASE 7 🟡 PAUSADA (contratos 7.0 committeados en `84c687c`, intocables). FASE 5 verificada (37/37 tests + assembleDebug OK).
+FASE 10 — PLAYLISTS, completada. FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
 
 Último cambio:
 
-FASE 8.4 — Navegación por artistas/álbumes: grafo anidado `library` (bottom bar intacta), Artistas/Álbumes reactivos + detalle navegable (bucket desconocido de primera clase), `SongRow`/`SongList` extraídos a `components/SongListItems.kt`, modelos `GroupSummariesModel`/`GroupDetailModel` con 8 pruebas. Decisiones en ARCHITECTURE.md §22.11 (D8.5). Validado: 90/90 tests, assembleDebug OK, diff --check limpio.
+FASE 10 — Playlists: Room m:n, repositorio, navegación, gestión y reproducción desde playlist.
 
 Roadmap replanificado (2026-10-28):
 
 - FASE 7 — DESCARGAS: 🟡 PAUSADA (retomar tras evaluar motor HTTP, segundo plano WorkManager/UIDT, NewPipe Extractor y condiciones legales).
-- FASE 8 — BIBLIOTECA COMPLETA: ⬜ próxima activa.
-- FASE 9 — REPRODUCTOR (Media3 prevista, pendiente de evaluación y aprobación de dependencia).
-- FASE 10 — PLAYLISTS (m:n con orden; migración Room a versión libre).
+- FASE 8 — BIBLIOTECA COMPLETA: completada previamente.
+- FASE 9 — REPRODUCTOR: ✅ completada; validación física confirmada por el usuario.
+- FASE 10 — PLAYLISTS: ✅ completada.
 - FASE 11 — AJUSTES (DataStore cuando corresponda; aprobación previa).
 - FASE 12 — INTEGRACIÓN FINAL (los flujos importar→reproducir→playlist y compatibilidad con descargas futuras).
 - FASE 13 TESTING / 14 OPTIMIZACIÓN / 15 RELEASE: intactas tras la 12.

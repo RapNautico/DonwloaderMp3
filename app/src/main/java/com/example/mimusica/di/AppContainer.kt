@@ -12,6 +12,7 @@ import com.example.mimusica.data.audio.SafAudioImporter
 import com.example.mimusica.data.audio.SafSongFileValidator
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.player.Media3PlayerController
+import com.example.mimusica.data.repository.PlaylistRepositoryImpl
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.importing.ImportAudioUseCase
 import com.example.mimusica.domain.repository.SongRepository
@@ -22,6 +23,8 @@ import com.example.mimusica.presentation.library.GroupKind
 import com.example.mimusica.presentation.library.LibraryViewModel
 import com.example.mimusica.presentation.library.SongDetailViewModel
 import com.example.mimusica.presentation.player.PlayerViewModel
+import com.example.mimusica.presentation.playlist.PlaylistDetailViewModel
+import com.example.mimusica.presentation.playlist.PlaylistsViewModel
 
 /**
  * Inyección de dependencias MANUAL (decisión de ARCHITECTURE §18: sin Hilt
@@ -33,6 +36,7 @@ class AppContainer(private val app: Application) {
     // Data
     private val database: AppDatabase by lazy { AppDatabase.build(app) }
     val songRepository: SongRepository by lazy { SongRepositoryImpl(database.songDao()) }
+    val playlistRepository by lazy { PlaylistRepositoryImpl(database.playlistDao()) }
 
     // Importación (FASE 5)
     private val metadataReader by lazy { AudioMetadataReader(app) }
@@ -63,6 +67,9 @@ class AppContainer(private val app: Application) {
             initializer {
                 PlayerViewModel(playerController)
             }
+            initializer {
+                PlaylistsViewModel(playlistRepository)
+            }
         }
 
     fun release() {
@@ -84,6 +91,13 @@ class AppContainer(private val app: Application) {
     fun albumDetailViewModelFactory(name: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer { GroupDetailViewModel(songRepository, GroupKind.ALBUM, name) }
+        }
+
+    fun playlistDetailViewModelFactory(playlistId: Long): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer {
+                PlaylistDetailViewModel(playlistRepository, songRepository, playlistId)
+            }
         }
 
     /**

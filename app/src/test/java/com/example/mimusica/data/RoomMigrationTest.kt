@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * Migraciones Room v1→v3 y v2→v3 en JVM (BundledSQLiteDriver, sin emulador).
+ * Migraciones Room históricas hasta v4 en JVM (BundledSQLiteDriver, sin emulador).
  *
  * Estrategia sin `room3-testing` (dependencia NO aprobada): se crea a mano un
  * archivo de base de datos con el esquema exacto de una versión exportada,
@@ -33,6 +33,8 @@ class RoomMigrationTest {
     private val identityHashV2 = "0071e59fa966f13cab292a4242891126"
     /** Identity hash del schema v1 exportado (app/schemas/1.json). */
     private val identityHashV1 = "963d146075f2eda33158d0fddb3b140b"
+    /** Identity hash del schema v3 exportado (app/schemas/.../3.json). */
+    private val identityHashV3 = "08f33a1ce8c8e982c701ef04c5cf88ed"
 
     private lateinit var dbFile: String
 
@@ -145,7 +147,7 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun migracion_1_a_3_conserva_datos_y_crea_el_esquema_v3() = runBlocking {
+    fun migracion_1_a_4_conserva_datos_y_crea_las_tablas_de_playlist() = runBlocking {
         crearBaseV1ConCancion("content://sa/v1cancion", "Canción v1", "Artista v1")
 
         val db = AppDatabase.build(dbFile)
@@ -209,7 +211,13 @@ class RoomMigrationTest {
 
             conn.prepare("PRAGMA user_version").use { statement ->
                 assertTrue(statement.step())
-                assertEquals(3L, statement.getLong(0))
+                assertEquals(4L, statement.getLong(0))
+                val tables = mutableSetOf<String>()
+                conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").use { statement ->
+                    while (statement.step()) tables += statement.getText(0)
+                }
+                assertTrue("playlists" in tables)
+                assertTrue("playlist_songs" in tables)
             }
         }
     }
@@ -286,6 +294,36 @@ class RoomMigrationTest {
         // Y la coexistencia en la misma biblioteca es correcta:
         assertEquals(2, repo.observeLibrary().first().size)
 
+        db.close()
+    }
+
+    @Test
+    fun migracion_3_a_4_conserva_canciones_y_crea_playlist_con_relacion() = runBlocking {
+        crearBaseV2ConCancion("content://sa/v3-song", "Canción v3", "Artista v3")
+        BundledSQLiteDriver().open(dbFile).use { conn ->
+            listOf(
+                "ALTER TABLE songs ADD COLUMN genre TEXT",
+                "CREATE INDEX IF NOT EXISTS `index_songs_album` ON `songs` (`album`)",
+                "CREATE INDEX IF NOT EXISTS `index_songs_dateAddedMs` ON `songs` (`dateAddedMs`)",
+                "UPDATE room_master_table SET identity_hash = '$identityHashV3' WHERE id = 1",
+                "PRAGMA user_version = 3",
+            ).forEach { sql ->
+                conn.prepare(sql).use { statement -> statement.step() }
+            }
+        }
+
+        val db = AppDatabase.build(dbFile)
+        val songRepository = SongRepositoryImpl(db.songDao())
+        val playlistRepository = com.example.mimusica.data.repository.PlaylistRepositoryImpl(db.playlistDao())
+        val existingSong = songRepository.getSong("content://sa/v3-song")
+        assertEquals("Canción v3", existingSong?.title)
+
+        val playlistId = playlistRepository.createPlaylist("Favoritas")
+        assertTrue(playlistRepository.addSong(playlistId, "content://sa/v3-song"))
+        assertEquals(
+            listOf("content://sa/v3-song"),
+            playlistRepository.observePlaylist(playlistId).first()?.songs?.map { it.uri },
+        )
         db.close()
     }
 }

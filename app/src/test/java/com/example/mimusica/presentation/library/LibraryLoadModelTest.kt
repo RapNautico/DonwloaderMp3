@@ -13,10 +13,14 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,7 +34,7 @@ class LibraryLoadModelTest {
     private class FakeRepository : SongRepository {
         val library = MutableStateFlow<List<Song>>(emptyList())
         var failLibrary = false
-        var libraryObservations = 0
+        val libraryObservations = MutableStateFlow(0)
 
         override fun observeLibrary(): Flow<List<Song>> = observeLibrary(SongSort.TITLE_ASC)
 
@@ -40,7 +44,7 @@ class LibraryLoadModelTest {
         override suspend fun getSong(uri: String): Song? = null
         override suspend fun searchSongs(query: String): List<Song> = emptyList()
         override fun observeLibrary(sortedBy: SongSort): Flow<List<Song>> = flow {
-            libraryObservations++
+            libraryObservations.update { it + 1 }
             if (failLibrary) throw IllegalStateException("library unavailable")
             library.collect { songs -> emit(songs.sortedWith(sortedBy.toComparator())) }
         }
@@ -114,30 +118,49 @@ class LibraryLoadModelTest {
 
     @Test
     fun carga_y_lista_visible_comparten_una_sola_observacion_y_reaccionan_al_orden() = runBlocking {
-        repository.library.value = listOf(song())
+        val firstSong = song().copy(title = "Zulu")
+        val secondSong = song().copy(uri = "content://music/two", title = "Alpha")
+        repository.library.value = listOf(firstSong, secondSong)
         val listModel = LibraryListModel(repository, searchDebounceMs = 0)
         model.observeIn(scope, listModel.sort)
         listModel.startIn(scope, model.state)
-        waitUntil { !listModel.visibleSongs.value.isLoading }
+        val expectedAscending = listOf(secondSong, firstSong)
+        awaitObservationState(listModel, expectedAscending, expectedCount = 1)
 
-        assertEquals(1, repository.libraryObservations)
-        assertEquals(listOf(song()), listModel.visibleSongs.value.songs)
+        assertEquals(1, repository.libraryObservations.value)
+        assertEquals(expectedAscending, listModel.visibleSongs.value.songs)
 
         listModel.onSortChange(SongSort.TITLE_DESC)
-        waitUntil {
-            !model.state.value.isLoading &&
-                listModel.visibleSongs.value.songs == model.state.value.songs
-        }
+        val expectedDescending = listOf(firstSong, secondSong)
+        awaitObservationState(listModel, expectedDescending, expectedCount = 2)
 
-        assertEquals(2, repository.libraryObservations)
+        assertEquals(2, repository.libraryObservations.value)
         assertEquals(repository.library.value.sortedWith(SongSort.TITLE_DESC.toComparator()), model.state.value.songs)
 
-        val added = song().copy(uri = "content://music/two", title = "Another")
-        repository.library.value = repository.library.value + added
-        waitUntil { listModel.visibleSongs.value.songs.size == 2 }
+        val newSong = song().copy(uri = "content://music/three", title = "Another")
+        repository.library.value = repository.library.value + newSong
+        val expectedAfterAddition = listOf(firstSong, newSong, secondSong)
+        awaitObservationState(listModel, expectedAfterAddition, expectedCount = 2)
 
-        assertEquals(2, repository.libraryObservations)
+        assertEquals(2, repository.libraryObservations.value)
         assertEquals(model.state.value.songs, listModel.visibleSongs.value.songs)
+    }
+
+    private suspend fun awaitObservationState(
+        listModel: LibraryListModel,
+        expectedSongs: List<Song>,
+        expectedCount: Int,
+    ) {
+        withTimeout(2_000) {
+            combine(model.state, listModel.visibleSongs, repository.libraryObservations) {
+                    libraryState, visibleState, observationCount ->
+                libraryState.songs == expectedSongs &&
+                    !libraryState.isLoading &&
+                    visibleState.songs == expectedSongs &&
+                    !visibleState.isLoading &&
+                    observationCount == expectedCount
+            }.first { ready -> ready }
+        }
     }
 
     private suspend fun waitUntil(predicate: () -> Boolean) {

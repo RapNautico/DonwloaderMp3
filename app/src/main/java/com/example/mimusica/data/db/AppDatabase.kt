@@ -16,12 +16,13 @@ import androidx.sqlite.SQLiteConnection
  * con el app, versión consistente y compatible con tests en JVM).
  */
 @Database(
-    entities = [SongEntity::class],
-    version = 3,
+    entities = [SongEntity::class, PlaylistEntity::class, PlaylistSongEntity::class],
+    version = 4,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
+    abstract fun playlistDao(): PlaylistDao
 
     companion object {
         const val DATABASE_NAME = "mimusica.db"
@@ -57,11 +58,51 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 → v4 (FASE 10): playlists and their ordered song memberships.
+         * Deleting either parent removes membership rows only; song files are
+         * never touched by Room.
+         */
+        private val MIGRATION_3_4 = object : Migration(startVersion = 3, endVersion = 4) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                listOf(
+                    """
+                    CREATE TABLE IF NOT EXISTS `playlists` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                    """
+                    CREATE TABLE IF NOT EXISTS `playlist_songs` (
+                        `playlistId` INTEGER NOT NULL,
+                        `songUri` TEXT NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        PRIMARY KEY(`playlistId`, `songUri`),
+                        FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`songUri`) REFERENCES `songs`(`uri`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                    """
+                    CREATE INDEX IF NOT EXISTS `index_playlist_songs_playlistId_position`
+                    ON `playlist_songs` (`playlistId`, `position`)
+                    """.trimIndent(),
+                    """
+                    CREATE INDEX IF NOT EXISTS `index_playlist_songs_songUri`
+                    ON `playlist_songs` (`songUri`)
+                    """.trimIndent(),
+                ).forEach { sql ->
+                    connection.prepare(sql).use { statement -> statement.step() }
+                }
+            }
+        }
+
         /** Instancia de producción o pruebas, basada en archivo en disco. */
         fun build(path: String): AppDatabase =
             Room.databaseBuilder<AppDatabase>(name = path)
                 .setDriver(BundledSQLiteDriver())
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
 
         /** Conveniencia para producción con el path estándar de la app. */

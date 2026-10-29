@@ -63,9 +63,10 @@ flowchart LR
 
 ## 3.3 Playlists
 
-- Lista de listas de reproducción; crear, renombrar, eliminar, reordenar.
-- Detalle: canciones de la playlist, quitar/ordenar, reproducir todo.
-- Estados equivalentes al resto.
+- Lista de playlists con portada de la primera canción disponible (si no hay canción/portada, placeholder neutro), cantidad y acciones para crear, renombrar y eliminar con confirmación.
+- Detalle: añadir canciones existentes desde la biblioteca, quitar canciones, reordenar con controles accesibles y reproducir toda la playlist o desde una canción seleccionada.
+- La acción «Añadir a playlist» de la biblioteca abre la selección de una playlist existente; una playlist vacía orienta a crear una desde la sección Playlists.
+- Estados equivalentes al resto, incluyendo carga, error, lista vacía y detalle vacío.
 
 ## 3.4 Downloads
 

@@ -7,6 +7,33 @@
     <string name="library_tab_artists">Artistas</string>
     <string name="library_tab_albums">Álbumes</string>
     <string name="playlists">Playlists</string>
+    <string name="playlist_create">Crear playlist</string>
+    <string name="playlist_rename">Renombrar</string>
+    <string name="playlist_name">Nombre</string>
+    <string name="playlist_actions">Acciones de %1$s</string>
+    <string name="playlist_empty_title">Aún no tienes playlists</string>
+    <string name="playlist_empty_description">Crea una playlist para organizar tus canciones favoritas.</string>
+    <string name="playlist_load_error_title">No se pudieron cargar las playlists</string>
+    <string name="playlist_load_error_description">Comprueba los datos locales e inténtalo de nuevo.</string>
+    <string name="playlist_not_found">Playlist no disponible</string>
+    <string name="playlist_not_found_description">Es posible que se haya eliminado.</string>
+    <string name="playlist_delete_title">¿Eliminar playlist?</string>
+    <string name="playlist_delete_message">Se eliminará «%1$s» y su orden. Las canciones y sus archivos seguirán en tu biblioteca.</string>
+    <string name="playlist_add_song_title">Añadir a playlist</string>
+    <string name="playlist_add_song_message">Elige dónde añadir «%1$s».</string>
+    <string name="playlist_add_songs">Añadir canciones</string>
+    <string name="playlist_play_all">Reproducir</string>
+    <string name="playlist_songs_empty_title">Playlist vacía</string>
+    <string name="playlist_songs_empty_description">Añade canciones de tu biblioteca para empezar.</string>
+    <string name="playlist_library_empty">No hay canciones en la biblioteca para añadir.</string>
+    <string name="playlist_song_added">Añadida</string>
+    <string name="playlist_remove_song">Quitar %1$s de la playlist</string>
+    <string name="playlist_move_up">Mover %1$s hacia arriba</string>
+    <string name="playlist_move_down">Mover %1$s hacia abajo</string>
+    <string name="action_add">Añadir</string>
+    <string name="action_done">Listo</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_create">Crear</string>
     <string name="downloads">Descargas</string>
     <string name="settings">Ajustes</string>
     <string name="mini_player_no_track">Nada en reproducción</string>
@@ -106,6 +133,10 @@
     <string name="action_delete">Eliminar</string>
     <string name="library_delete_error">No se pudo eliminar la canción de la biblioteca.</string>
     <plurals name="library_song_count">
+        <item quantity="one">%d canción</item>
+        <item quantity="other">%d canciones</item>
+    </plurals>
+    <plurals name="playlist_song_count">
         <item quantity="one">%d canción</item>
         <item quantity="other">%d canciones</item>
     </plurals>

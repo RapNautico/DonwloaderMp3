@@ -44,6 +44,7 @@ import com.example.mimusica.ui.screens.HomeScreen
 import com.example.mimusica.ui.screens.LibraryScreen
 import com.example.mimusica.ui.screens.LibraryTab
 import com.example.mimusica.ui.screens.PlayerScreen
+import com.example.mimusica.ui.screens.PlaylistDetailScreen
 import com.example.mimusica.ui.screens.PlaylistsScreen
 import com.example.mimusica.ui.screens.SettingsScreen
 import com.example.mimusica.ui.screens.SongDetailScreen
@@ -126,6 +127,7 @@ fun MiMusicaApp() {
                     LibraryScreen(
                         onSelectTab = { tab -> navigateLibraryTab(navController, tab) },
                         onOpenSong = { uri -> openSongDetail(navController, uri) },
+                        onOpenPlaylists = { navController.navigate("playlists") },
                         onPlaySongs = { songs, uri ->
                             playerViewModel.playSongs(songs, uri)
                             navController.navigate("player")
@@ -205,7 +207,27 @@ fun MiMusicaApp() {
                     onBack = { navController.popBackStack() },
                 )
             }
-            composable("playlists") { PlaylistsScreen() }
+            navigation(startDestination = "playlists/list", route = "playlists") {
+                composable("playlists/list") {
+                    PlaylistsScreen(
+                        onOpenPlaylist = { id -> navController.navigate("playlists/detail/$id") },
+                    )
+                }
+                composable(
+                    route = "playlists/detail/{playlistId}",
+                    arguments = listOf(navArgument("playlistId") { type = NavType.LongType }),
+                ) { entry ->
+                    val playlistId = entry.arguments?.getLong("playlistId") ?: return@composable
+                    PlaylistDetailScreen(
+                        playlistId = playlistId,
+                        onBack = { navController.popBackStack() },
+                        onPlaySongs = { songs, uri ->
+                            playerViewModel.playSongs(songs, uri)
+                            navController.navigate("player")
+                        },
+                    )
+                }
+            }
             composable("downloads") { DownloadsScreen() }
             composable("settings") { SettingsScreen() }
         }

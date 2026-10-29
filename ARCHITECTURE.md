@@ -124,7 +124,7 @@ Responsabilidades:
 - ExoPlayer gestiona el foco de audio y `setHandleAudioBecomingNoisy(true)` pausa al desconectar auriculares.
 - La cola, el indice, la posicion, `playWhenReady`, el modo de repeticion, el estado shuffle y su orden completo se guardan como datos serializables en preferencias privadas, nunca como objetos Media3. El codec lee snapshots v1 y asigna modos predeterminados a los campos que no existian.
 - El acceso a canciones se realiza mediante las URI persistidas por SAF. Si una URI ya no es legible, el error de Media3 se refleja en el estado de playback; no se elimina el registro de Room.
-- La validacion de notificacion, lock screen, foco y restauracion del proceso requiere pruebas manuales en dispositivo.
+- La validacion fisica de notificacion, lock screen, foco, auriculares, modos de reproducción y restauracion de FASE 9 fue confirmada por el usuario en teléfono Android 14.
 
 ## 3.2 Ciclo de vida de una descarga
 
@@ -260,6 +260,15 @@ database/
 Room almacena metadata.
 
 Los archivos de audio se almacenan fuera de SQLite.
+
+## 8.1 Playlists (FASE 10)
+
+- `PlaylistEntity` y `PlaylistSongEntity` implementan la relación m:n entre playlists y `SongEntity`; el orden pertenece a cada playlist.
+- `playlist_songs` usa `(playlistId, songUri)` como clave primaria. Las filas se leen por `position` y luego `songUri`, lo que da un orden estable. La reordenación valida que reciba exactamente las URIs actuales y actualiza posiciones dentro de una transacción.
+- Las dos claves foráneas usan `ON DELETE CASCADE` solo para filas de `playlist_songs`: borrar una playlist borra sus membresías; borrar una canción de Room la quita de todas las playlists. Ninguna operación de playlist borra archivos físicos.
+- La migración v3→v4 crea las tablas e índices de las relaciones sin modificar filas existentes de canciones. No se usa fallback destructivo.
+- El nombre se recorta y se rechaza si queda vacío; se permiten nombres duplicados. El ID autogenerado preserva identidad aunque se renombre.
+- `PlaylistRepository` expone listas y detalles como Flow. Presentation transforma errores en estado visible y solicita reproducción al `PlayerViewModel` reutilizado; no controla Media3 ni accede a Room.
 
 ---
 
@@ -680,25 +689,27 @@ La FASE 7 queda PAUSADA tras completar la entrega 7.0 (contratos de dominio + pr
 - `domain/source/*` y `domain/download/*` son Kotlin puro, sin Android, sin Room y sin proveedores: la pausa NO los condiciona. El motor (7.2) y la persistencia de descargas (7.3) se montarán ENCIMA de estos contratos.
 - Integración con la biblioteca por el mismo camino que la importación local: `DownloadRequest` → archivo local validado reutilizando el lector real de FASE 5 (MediaExtractor) → `SongRepository.addSongs` (URI = fichero local; dedup por URI). Una canción descargada en el futuro será, para la biblioteca, indistinguible de una importada.
 
-## Arquitectura prevista del reproductor (FASE 9, sin decidir dependencias)
+## Arquitectura del reproductor (FASE 9)
 
 ```text
 UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 (candidato, pendiente de evaluación) → archivo local
 ```
 
-- La UI transmite estado y actions; el control del reproductor queda en Data/service; Domain define el playback contract puro (cola incluida).
+- La UI transmite estado y acciones; el control del reproductor queda en Data/service; Domain define el playback contract puro (cola incluida).
 - La cola de reproducción es independiente de `DownloadQueue` (7.0); solo comparten estilo FIFO/estados.
-- MediaSessionService de Media3 vs service propio: DECISIÓN PENDIENTE (depende de aprobar Media3).
-- Modo fondo/notificación/Bluetooth: diseño igual a §3.1; cualquier dependencia nueva se aprueba explícitamente.
+- Media3 `MediaSessionService` implementa reproducción en segundo plano, notificación, lock screen y controles externos, según §3.1.
+- Repeat/Shuffle se delegan a Media3; Domain expone modos propios y el snapshot serializable conserva modo, shuffle order y estado de cola.
 
-## Arquitectura prevista de playlists (FASE 10)
+## Arquitectura de playlists (FASE 10)
 
 ```text
 Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de cada lista)
 ```
 
-- Tablas `playlists` + `playlist_songs` con MIGRACIÓN Room (la versión exacta se asigna al implementar; hoy v2; la v3 pensada para descargas no se consumió y la numeración se resuelve entonces).
-- FK y ON DELETE (quitar canción de lista ≠ borrar canción) se deciden en FASE 10. Reproducir desde canción concreta = cola inicial construida desde esa posición.
+- Tablas Room `playlists` y `playlist_songs` añadidas en la migración v3→v4; `position` define el orden propio de cada playlist.
+- `playlist_songs` tiene PK `(playlistId, songUri)` y FKs con `ON DELETE CASCADE` desde la playlist y `SongEntity`. Cascade elimina exclusivamente la membresía en la relación: borrar una canción de Room la quita de las playlists, pero nunca borra el archivo físico.
+- La reordenación verifica transaccionalmente que la entrada sea una permutación exacta de las URIs actuales. Nombres se recortan y no pueden quedar vacíos; nombres duplicados se permiten.
+- `PlaylistRepository` expone listas/detalle mediante Flow; reproducir desde la lista o un elemento reutiliza el `PlayerViewModel` y construye la cola desde el orden persistido.
 
 ## Arquitectura prevista de ajustes (FASE 11)
 
@@ -707,7 +718,6 @@ Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de c
 
 ## Decisiones pendientes (bloqueantes de fases concretas)
 
-- Media3: aprobar dependencia (Fase 9). Alternativa sin API: plataforma propia no es viable a plazo razonable → la evaluación debe cubrir impacto APK y versiones compatibles.
 - WorkManager/UIDT: motores del pausado sistema de descargas (Fase 7).
 - OkHttp/HttpURLConnection: del motor de descarga pausado (Fase 7).
 - DataStore: para Fase 11 (alternativa: SharedPreferences/documents comunes ya disponibles, menos idiomática).
@@ -732,7 +742,7 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 - `MIGRATION_1_2` existente se conserva; nueva **`MIGRATION_2_3`** (suspend, `connection.prepare/step`, mismos hechos verificados de `SQLiteConnection` — NO existe `execSQL`):
   - `ALTER TABLE songs ADD COLUMN genre TEXT`.
   - `CREATE INDEX index_songs_album ON songs(album)` y `index_songs_dateAddedMs` — justificados SOLO porque las consultas previstas (dectalle/orden por álbum, recientes) los usan en WHERE/ORDER BY. La PK `uri` ya garantiza el índice por URI.
-- Schemas v1/v2/v3 exportados. El plan de migración para descargas (FASE 7 pausada) tomará la siguiente versión libre al retomarse.
+- Schemas v1/v2/v3 exportados. FASE 10 añadió v4; cualquier migración de descargas futura debe usar la siguiente versión libre cuando se autorice esa fase.
 
 ## D8.3 Consultas y repositorio
 

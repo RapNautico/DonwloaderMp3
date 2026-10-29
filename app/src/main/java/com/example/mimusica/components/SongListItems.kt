@@ -121,6 +121,8 @@ fun SongRow(
 data class SongRowMenu(
     /** Reproduce desde la canción seleccionada y conserva la cola visible. */
     val onPlay: () -> Unit,
+    /** Abre la selección de playlist para la canción actual. */
+    val onAddToPlaylist: () -> Unit,
     /** Abre el detalle de la canción (bottom sheet de 8.5). */
     val onInformation: () -> Unit,
     /** Pide SIMPLE el borrado (la ConfirmDialog vive en la pantalla). */
@@ -155,8 +157,10 @@ fun SongMenuButton(actions: SongRowMenu) {
             // Callback POR REFUERZO para FASE 10 (PLAN 8.6):
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.song_menu_add_playlist)) },
-                onClick = { expanded = false },
-                enabled = false, // playlists: FASE 10
+                onClick = {
+                    expanded = false
+                    actions.onAddToPlaylist()
+                },
             )
             DropdownMenuItem(
                 text = {
