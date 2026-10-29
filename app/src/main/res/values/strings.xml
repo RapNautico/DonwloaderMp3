@@ -35,4 +35,17 @@
     <string name="library_sort_recent_first">Añadido reciente</string>
     <string name="library_sort_oldest_first">Añadido antiguo</string>
     <string name="library_sort_duration_desc">Duración (larga primero)</string>
+    <string name="nav_back">Atrás</string>
+    <string name="library_open_artists">Ver artistas</string>
+    <string name="library_open_albums">Ver álbumes</string>
+    <string name="library_artists_title">Artistas</string>
+    <string name="library_albums_title">Álbumes</string>
+    <string name="library_unknown_album">Álbum desconocido</string>
+    <string name="library_group_empty_title">Sin canciones</string>
+    <string name="library_group_empty_description">Este grupo no tiene canciones en la biblioteca.</string>
+    <string name="library_browse_error">No se pudo actualizar la lista. Prueba de nuevo.</string>
+    <plurals name="library_song_count">
+        <item quantity="one">%d canción</item>
+        <item quantity="other">%d canciones</item>
+    </plurals>
 </resources>

@@ -740,6 +740,15 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 - Playlists: `Song`/`.uri` usado como identidad compartida (PK de `songs`) es compatible con la futura tabla de unión `playlist_songs(songUri, ...)`.
 - Prueba de migración instrumentada (RoomMigrationTestHelper) sigue pendiente por falta de emulador; la validación JVM re-open con datos previos cubre el caso feliz.
 
+## D8.5 Navegación por artistas/álbumes (FASE 8.4, 2026-10-29)
+
+- **Rutas anidadas**: las vistas de biblioteca viven en un `navigation(...)` con grafo de ruta `library` (start `library/songs`). La bottom bar NO cambió: su destino "library" ahora resuelve al grafo (mismo comportamiento) y la selección se conserva en las rutas hijas vía `hierarchy`. `openGroup()` codea el nombre con `Uri.encode` (espacios, `/`, `&` llegan intactos); para el bucket desconocido la ruta va SIN parámetro — el `null` es un destino normal, no una anomalía.
+- **Contrato de detalle**: usa las consultas suspend de 8.2 (`getSongsByArtist`/`getSongsByAlbum`, orden SQL definido) con CARGA ÚNICA al abrir el grupo: el snapshot es suficiente en FASE 8 (sin reproducción ni edición que muten el grupo desde el detalle); la reactividad completa del detalle se reevalúa con el reproductor de FASE 9. Las LISTAS de resúmenes sí son reactivas (DAO Flow, re-emite con cada cambio de `songs`).
+- **Null → etiqueta**: el nombre `null` viaja intacto Domain→Presentation; "Artista desconocido"/"Álbum desconocido" existe SOLO en `ui/screens` (regla Summaries.kt). El detalle con datos no válidos no crashea: Loading→Content|Error explícitos.
+- **Reutilización**: `SongRow`/`SongList`/`ArtworkThumbnail`/`formatDuration` extraídos de `LibraryScreen` a `components/SongListItems.kt` (un único punto de filas de canción para biblioteca y detalles; FASE 9/10 lo reutilizará).
+- **ViewModels con argumento de ruta**: factories por destino en `AppContainer` (`artistDetailViewModelFactory(name)` / `albumDetailViewModelFactory(name)`); DI sigue manual.
+- **Pruebas**: 8 casos de `GroupSummariesModel`/`GroupDetailModel` (JVM, scope propio como 8.3, `await` por predicado sin debounce) — reactividad de resúmenes, bucket `null` navegable, nombres especiales, error conservando lista previa / estado Error sin crash, contenido vacío. `kotlinx-coroutines-test` sigue sin aprobarse.
+
 ---
 
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)

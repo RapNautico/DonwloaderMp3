@@ -4,27 +4,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,12 +43,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
+import com.example.mimusica.components.SongList
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
@@ -63,11 +58,18 @@ import com.example.mimusica.presentation.library.LibraryViewModel
  * Estados: loading, vacía (EmptyState + CTA), importando (progreso),
  * resultado (n añadidas / rechazadas) y error parcial comprensible.
  *
+ * FASE 8.4: expone [onOpenArtists]/[onOpenAlbums] (top bar). Las rutas
+ * anidadas de artistas/álbumes viven en MiMusicaApp (grafo "library"):
+ * las Tabs definitivas Canciones/Artistas/Álbumes llegan en 8.8.
+ *
  * La actividad no conoce Room: solo usa `LibraryViewModel` (Domain).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen() {
+fun LibraryScreen(
+    onOpenArtists: () -> Unit,
+    onOpenAlbums: () -> Unit,
+) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
     val library by viewModel.library.collectAsState()
@@ -102,6 +104,19 @@ fun LibraryScreen() {
             TopAppBar(
                 title = { Text(stringResource(R.string.library)) },
                 actions = {
+                    // FASE 8.4: exploración por artistas/álbumes (rutas anidadas).
+                    IconButton(onClick = onOpenArtists) {
+                        Icon(
+                            Icons.Filled.Person,
+                            contentDescription = stringResource(R.string.library_open_artists),
+                        )
+                    }
+                    IconButton(onClick = onOpenAlbums) {
+                        Icon(
+                            Icons.Filled.Album,
+                            contentDescription = stringResource(R.string.library_open_albums),
+                        )
+                    }
                     IconButton(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) {
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.library_add_music))
                     }
@@ -231,75 +246,6 @@ private fun ImportErrorBanner(message: String) {
             modifier = Modifier.padding(16.dp),
         )
     }
-}
-
-@Composable
-private fun SongList(songs: List<com.example.mimusica.domain.model.Song>) {
-    LazyColumn {
-        items(songs, key = { it.uri }) { song ->
-            SongRow(song)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        }
-    }
-}
-
-@Composable
-private fun SongRow(song: com.example.mimusica.domain.model.Song) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = false) { /* la reproducción real llega en FASE 10 */ }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        // Portada: la copia local si existe; placeholder del design system si no.
-        ArtworkThumbnail(song.artworkPath)
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = listOfNotNull(song.artist, song.album).joinToString(" · ")
-                    .ifEmpty { stringResource(R.string.library_unknown_artist) },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        // Duración real (0 = desconocida) — nunca inventada
-        Text(
-            text = formatDuration(song.durationMs),
-            style = MaterialTheme.typography.labelSmall,
-        )
-    }
-}
-
-@Composable
-fun ArtworkThumbnail(path: String?) {
-    // FASE 5: placeholder SIEMPRE (no decodificamos Bitmap todavía; la copia se
-    // hace disponible para reproducir/miniaturas sin reabrir la URI de SAF).
-    Surface(
-        modifier = Modifier.size(40.dp),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Icon(
-            Icons.Filled.MusicNote,
-            contentDescription = null,
-            modifier = Modifier.padding(8.dp),
-        )
-    }
-}
-
-private fun formatDuration(durationMs: Long): String {
-    if (durationMs <= 0) return "--:--"
-    val total = durationMs / 1000
-    return "%d:%02d".format(total / 60, total % 60)
 }
 
 @Composable

@@ -13,6 +13,10 @@ import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.importing.ImportAudioUseCase
 import com.example.mimusica.domain.repository.SongRepository
+import com.example.mimusica.presentation.library.AlbumsViewModel
+import com.example.mimusica.presentation.library.ArtistsViewModel
+import com.example.mimusica.presentation.library.GroupDetailViewModel
+import com.example.mimusica.presentation.library.GroupKind
 import com.example.mimusica.presentation.library.LibraryViewModel
 
 /**
@@ -43,6 +47,27 @@ class AppContainer(private val app: Application) {
             initializer {
                 LibraryViewModel(importAudioUseCase, songRepository)
             }
+            initializer {
+                ArtistsViewModel(songRepository)
+            }
+            initializer {
+                AlbumsViewModel(songRepository)
+            }
+        }
+
+    /**
+     * Factories del DETALLE de grupo (FASE 8.4): el nombre del artista/álbum
+     * llega de la ruta de navegación (nullable; null = bucket desconocido),
+     * así que cada destino necesita SU propia factory con ese parámetro.
+     */
+    fun artistDetailViewModelFactory(name: String?): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer { GroupDetailViewModel(songRepository, GroupKind.ARTIST, name) }
+        }
+
+    fun albumDetailViewModelFactory(name: String?): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer { GroupDetailViewModel(songRepository, GroupKind.ALBUM, name) }
         }
 
     /**
