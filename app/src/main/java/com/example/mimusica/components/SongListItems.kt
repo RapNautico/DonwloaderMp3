@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
 import com.example.mimusica.domain.model.Song
@@ -28,14 +29,20 @@ import com.example.mimusica.domain.model.Song
 /**
  * Fila de canción REUTILIZABLE (FASE 8.4, extraction de LibraryScreen).
  * La usan la lista de la biblioteca (8.3) y los detalles de artista/álbum.
- * El clic permanece DESHABILITADO: la reproducción real llega en FASE 9.
+ *
+ * FASE 8.5: [onSongClick] abre el DETALLE de la canción (bottom sheet,
+ * ruta `library/song?uri=...`). Cuando es null la fila NO es clicable
+ * (comportamiento por defecto: la reproducción real llega en FASE 9).
  */
 @Composable
-fun SongRow(song: Song) {
+fun SongRow(song: Song, onSongClick: ((Song) -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = false) { /* la reproducción real llega en FASE 9 */ }
+            .clickable(
+                enabled = onSongClick != null,
+                onClick = { onSongClick?.invoke(song) },
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -68,10 +75,10 @@ fun SongRow(song: Song) {
 
 /** Listado vertical de canciones con separadores (comportamiento estable por `uri`). */
 @Composable
-fun SongList(songs: List<Song>) {
+fun SongList(songs: List<Song>, onSongClick: ((Song) -> Unit)? = null) {
     LazyColumn {
         items(songs, key = { it.uri }) { song ->
-            SongRow(song)
+            SongRow(song, onSongClick)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
@@ -80,19 +87,20 @@ fun SongList(songs: List<Song>) {
 /**
  * Miniatura de portada (FASE 5): placeholder SIEMPRE mientras no exista
  * decodificación de carátulas; la copia local (artworkPath) está lista para
- * FASE 9/10. Alias importado: mantiene un ÚNICO punto de miniaturas.
+ * FASE 9/10. FASE 8.5: parámetro opcional de tamaño para el detalle
+ * (64 dp) mientras las filas siguen usando 40 dp.
  */
 @Composable
-fun ArtworkThumbnail(path: String?) {
+fun ArtworkThumbnail(path: String?, size: Dp = 40.dp) {
     Surface(
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(size),
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.primaryContainer,
     ) {
         Icon(
             Icons.Filled.MusicNote,
             contentDescription = null,
-            modifier = Modifier.padding(8.dp),
+            modifier = Modifier.padding(size / 4),
         )
     }
 }

@@ -39,6 +39,7 @@ import com.example.mimusica.ui.screens.HomeScreen
 import com.example.mimusica.ui.screens.LibraryScreen
 import com.example.mimusica.ui.screens.PlaylistsScreen
 import com.example.mimusica.ui.screens.SettingsScreen
+import com.example.mimusica.ui.screens.SongDetailScreen
 private data class TopLevelDestination(
     val route: String,
     val labelRes: Int,
@@ -109,6 +110,7 @@ fun MiMusicaApp() {
                     LibraryScreen(
                         onOpenArtists = { navController.navigate("library/artists") },
                         onOpenAlbums = { navController.navigate("library/albums") },
+                        onOpenSong = { uri -> openSongDetail(navController, uri) },
                     )
                 }
                 composable("library/artists") {
@@ -137,6 +139,7 @@ fun MiMusicaApp() {
                     ArtistDetailScreen(
                         name = backStackEntry.arguments?.getString("name"),
                         onBack = { navController.popBackStack() },
+                        onSongOpen = { uri -> openSongDetail(navController, uri) },
                     )
                 }
                 composable(
@@ -152,6 +155,26 @@ fun MiMusicaApp() {
                     AlbumDetailScreen(
                         name = backStackEntry.arguments?.getString("name"),
                         onBack = { navController.popBackStack() },
+                        onSongOpen = { uri -> openSongDetail(navController, uri) },
+                    )
+                }
+                // FASE 8.5 — detalle de canción (bottom sheet M3). La uri REAL
+                // (content://...) va codeada; el parámetro tipo query + nullable
+                // evita romper con / : % en la URI y, si faltara, la pantalla
+                // defiende con el estado NotFound (sin crash).
+                composable(
+                    route = "library/song?uri={uri}",
+                    arguments = listOf(
+                        navArgument("uri") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    SongDetailScreen(
+                        uri = backStackEntry.arguments?.getString("uri"),
+                        onDismiss = { navController.popBackStack() },
                     )
                 }
             }
@@ -171,5 +194,16 @@ fun MiMusicaApp() {
 private fun openGroup(navController: NavHostController, baseRoute: String, name: String?) {
     navController.navigate(
         if (name == null) baseRoute else "$baseRoute?name=${Uri.encode(name)}",
+    )
+}
+
+/**
+ * Abre el DETALLE de una canción (FASE 8.5). La uri REAL del archivo
+ * (content://...) va codeada; una uri nula navega sin parámetro y la
+ * pantalla la defiende con estado NotFound (sin crash).
+ */
+private fun openSongDetail(navController: NavHostController, uri: String?) {
+    navController.navigate(
+        if (uri.isNullOrBlank()) "library/song" else "library/song?uri=${Uri.encode(uri)}",
     )
 }

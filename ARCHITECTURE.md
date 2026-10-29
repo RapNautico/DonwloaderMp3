@@ -749,6 +749,15 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 - **ViewModels con argumento de ruta**: factories por destino en `AppContainer` (`artistDetailViewModelFactory(name)` / `albumDetailViewModelFactory(name)`); DI sigue manual.
 - **Pruebas**: 8 casos de `GroupSummariesModel`/`GroupDetailModel` (JVM, scope propio como 8.3, `await` por predicado sin debounce) — reactividad de resúmenes, bucket `null` navegable, nombres especiales, error conservando lista previa / estado Error sin crash, contenido vacío. `kotlinx-coroutines-test` sigue sin aprobarse.
 
+## D8.6 Detalle de canción (FASE 8.5, 2026-10-29)
+
+- **Bottom sheet M3 como destino**: ruta `library/song?uri={uri}` dentro del grafo `library` (parámetro tipo query + nullable: la URI real `content://...` se codea con `Uri.encode` para sobrevivir a `/`, `:`, `%`; ausente → pantalla defiende con NotFound, sin crash). El sheet se cierra con swipe/back → `popBackStack`.
+- **Datos REALES únicamente**: `Song` viaja INTACTO Domain→Presentation (contrato existente `getSong(uri)` de 8.2); los `null` del DOMAIN se sustituyen por "Desconocido" SOLO en la UI (`song_detail_unknown`); el bitrate convertido a kbps es matemática exacta del valor medido en importación (MediaExtractor), sin redondeos engañosos; tamaño/frecuencia/muestras con formato determinista (Locale.ROOT, punto decimal). Duración reutiliza `formatDuration` (0 = desconocida).
+- **Estados**: Loading / Content / NotFound (canción quitada de la biblioteca o uri desconocida) / Error — nunca crash por datos (AGENTS §12). El archivo YA NO DISPONIBLE pero registrado sigue mostrando sus metadatos; su detección bajo demanda con badge es la FASE 8.7 (sin implementar aquí).
+- **Acceso reutilizando componentes**: fila de canción clicable opcional (`SongRow(onSongClick)` — null = no clicable, como la reproducción aún pendiente); activo en biblioteca y en los detalles de artista/álbum (8.4). Sin menú contextual ni eliminación: eso es la 8.6.
+- **Sin cambios de esquema ni dependencias**: Room v3 intacta; ningún método nuevo en el repositorio.
+- **Pruebas**: 8 casos de `SongDetailModel` + helpers puros (JVM, `runBlocking` directo — el `load()` es suspend, sin Main): carga con nulls intactos, NotFound, uri nula/vacía sin consultar repo, error del repo sin crash, formato exacto de tamaño/bitrate/frecuencia. Sin `kotlinx-coroutines-test` (no autorizada).
+
 ---
 
 # 22.3 DECISIONES PENDIENTES (POST-FASE 1)

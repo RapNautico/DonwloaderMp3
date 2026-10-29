@@ -18,6 +18,7 @@ import com.example.mimusica.presentation.library.ArtistsViewModel
 import com.example.mimusica.presentation.library.GroupDetailViewModel
 import com.example.mimusica.presentation.library.GroupKind
 import com.example.mimusica.presentation.library.LibraryViewModel
+import com.example.mimusica.presentation.library.SongDetailViewModel
 
 /**
  * Inyección de dependencias MANUAL (decisión de ARCHITECTURE §18: sin Hilt
@@ -68,6 +69,15 @@ class AppContainer(private val app: Application) {
     fun albumDetailViewModelFactory(name: String?): ViewModelProvider.Factory =
         viewModelFactory {
             initializer { GroupDetailViewModel(songRepository, GroupKind.ALBUM, name) }
+        }
+
+    /**
+     * Factory del detalle de canción (FASE 8.5): la uri llega de la ruta
+     * navegada (nullable; null/vacía → la pantalla muestra NotFound).
+     */
+    fun songDetailViewModelFactory(uri: String?): ViewModelProvider.Factory =
+        viewModelFactory {
+            initializer { SongDetailViewModel(songRepository, uri) }
         }
 
     /**

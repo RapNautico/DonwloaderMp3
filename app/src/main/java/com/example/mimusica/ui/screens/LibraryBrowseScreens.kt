@@ -157,6 +157,7 @@ fun AlbumsScreen(
 fun ArtistDetailScreen(
     name: String?,
     onBack: () -> Unit,
+    onSongOpen: (String) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: GroupDetailViewModel = viewModel(
@@ -168,7 +169,7 @@ fun ArtistDetailScreen(
         title = name ?: stringResource(R.string.library_unknown_artist),
         onBack = onBack,
     ) {
-        GroupDetailContent(estado)
+        GroupDetailContent(estado, onSongOpen)
     }
 }
 
@@ -177,6 +178,7 @@ fun ArtistDetailScreen(
 fun AlbumDetailScreen(
     name: String?,
     onBack: () -> Unit,
+    onSongOpen: (String) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: GroupDetailViewModel = viewModel(
@@ -188,12 +190,15 @@ fun AlbumDetailScreen(
         title = name ?: stringResource(R.string.library_unknown_album),
         onBack = onBack,
     ) {
-        GroupDetailContent(estado)
+        GroupDetailContent(estado, onSongOpen)
     }
 }
 
 @Composable
-private fun GroupDetailContent(estado: GroupDetailState) {
+private fun GroupDetailContent(
+    estado: GroupDetailState,
+    onSongOpen: (String) -> Unit,
+) {
     when (estado) {
         GroupDetailState.Loading -> Centered { CircularProgressIndicator() }
         is GroupDetailState.Content -> {
@@ -206,7 +211,8 @@ private fun GroupDetailContent(estado: GroupDetailState) {
                     )
                 }
             } else {
-                SongList(estado.songs)
+                // FASE 8.5: tap en fila → detalle de canción (bottom sheet).
+                SongList(estado.songs, onSongClick = { song -> onSongOpen(song.uri) })
             }
         }
         is GroupDetailState.Error -> GroupErrorBanner(estado.message)

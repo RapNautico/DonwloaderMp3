@@ -61,6 +61,8 @@ import com.example.mimusica.presentation.library.LibraryViewModel
  * FASE 8.4: expone [onOpenArtists]/[onOpenAlbums] (top bar). Las rutas
  * anidadas de artistas/álbumes viven en MiMusicaApp (grafo "library"):
  * las Tabs definitivas Canciones/Artistas/Álbumes llegan en 8.8.
+ * FASE 8.5: [onOpenSong] abre el DETALLE (bottom sheet) de una canción.
+ * (El menú contextual de gestión llega en 8.6.)
  *
  * La actividad no conoce Room: solo usa `LibraryViewModel` (Domain).
  */
@@ -69,6 +71,7 @@ import com.example.mimusica.presentation.library.LibraryViewModel
 fun LibraryScreen(
     onOpenArtists: () -> Unit,
     onOpenAlbums: () -> Unit,
+    onOpenSong: (String) -> Unit,
 ) {
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
@@ -175,7 +178,7 @@ fun LibraryScreen(
                     }
                 }
 
-                else -> SongList(visibleSongs)
+                else -> SongList(visibleSongs, onSongClick = { song -> onOpenSong(song.uri) })
             }
         }
     }
