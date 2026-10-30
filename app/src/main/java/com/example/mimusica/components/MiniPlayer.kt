@@ -117,7 +117,15 @@ fun MiniPlayer(
 @Preview(showBackground = true)
 @Composable
 private fun MiniPlayerPreview() {
-    MiMusicaTheme {
+    MiMusicaTheme(dynamicColor = false) {
+        MiniPlayer()
+    }
+}
+
+@Preview(name = "MiniPlayer - oscuro", showBackground = true)
+@Composable
+private fun MiniPlayerDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
         MiniPlayer()
     }
 }

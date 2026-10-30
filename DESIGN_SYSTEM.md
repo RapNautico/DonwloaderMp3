@@ -305,3 +305,14 @@ Material 3 usa preferentemente tonal elevation (superficies con tinte del primar
 | Portadas faltantes | Fallback icono neutral siempre definido. |
 | Texto largo en idiomas | maxLines + ellipsis definido por componente. |
 | Pantalla Player en landscape | Layout adaptativo: portada a la izquierda, controles derecha (spec: FASE 10 implementación). |
+
+# 10. VISTAS PREVIAS DE COMPOSE
+
+Las pantallas y componentes visuales implementados deben ofrecer `@Preview` para inspeccionar su interfaz en Android Studio sin iniciar servicios ni acceder a datos reales.
+
+- Las previews se envuelven en `MiMusicaTheme` con color dinámico desactivado; se muestran variantes claras y oscuras cuando aporta valor.
+- La UI de Biblioteca se representa mediante un composable de contenido que recibe estado y acciones; el `ViewModel`, SAF y el contenedor de datos permanecen en la entrada de producción.
+- Los estados de carga, vacío, importación, error y contenido se pueden inspeccionar de forma independiente. Los datos sintéticos, si se necesitan para una preview, se identifican explícitamente como ejemplos y no se usan en la aplicación.
+- El preview del shell usa la ruta inicial Inicio; las pantallas también tienen previews individuales. Los componentes persistentes de navegación se pueden inspeccionar por separado.
+- Las pantallas placeholder se previsualizan como existen actualmente; la preview no habilita ni simula funcionalidades futuras.
+- Las previews son herramientas del IDE, no sustituyen pruebas ni modifican el comportamiento en ejecución.

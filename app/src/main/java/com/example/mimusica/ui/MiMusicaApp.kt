@@ -1,5 +1,7 @@
 package com.example.mimusica.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
@@ -17,6 +19,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -30,6 +34,8 @@ import com.example.mimusica.ui.screens.HomeScreen
 import com.example.mimusica.ui.screens.LibraryScreen
 import com.example.mimusica.ui.screens.PlaylistsScreen
 import com.example.mimusica.ui.screens.SettingsScreen
+import com.example.mimusica.theme.MiMusicaTheme
+
 private data class TopLevelDestination(
     val route: String,
     val labelRes: Int,
@@ -56,44 +62,117 @@ fun MiMusicaApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
 
-    Scaffold(
-        bottomBar = {
-            androidx.compose.foundation.layout.Column {
-                MiniPlayer()
-                NavigationBar {
-                topLevelDestinations.forEach { item ->
-                    val selected = currentDestination?.hierarchy?.any {
-                        it.route == item.route
-                    } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(item.icon, contentDescription = null) }, // la etiqueta describe semánticamente
-                        label = { Text(stringResource(item.labelRes)) },
-                    )
+    MiMusicaAppShell(
+        selectedRoute = selectedTopLevelRoute(currentDestination),
+        onDestinationSelected = { route ->
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
                 }
-                }
+                launchSingleTop = true
+                restoreState = true
             }
         },
-    ) { innerPadding ->
+    ) { contentModifier ->
         NavHost(
             navController = navController,
             startDestination = "home",
-            modifier = Modifier.padding(innerPadding),
+            modifier = contentModifier,
         ) {
             composable("home") { HomeScreen() }
             composable("library") { LibraryScreen() }
             composable("playlists") { PlaylistsScreen() }
             composable("downloads") { DownloadsScreen() }
             composable("settings") { SettingsScreen() }
+        }
+    }
+}
+
+@Composable
+private fun MiMusicaAppShell(
+    selectedRoute: String?,
+    onDestinationSelected: (String) -> Unit,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Scaffold(
+        bottomBar = {
+            Column {
+                MiniPlayer()
+                TopLevelNavigationBar(
+                    selectedRoute = selectedRoute,
+                    onDestinationSelected = onDestinationSelected,
+                )
+            }
+        },
+    ) { innerPadding ->
+        content(Modifier.padding(innerPadding))
+    }
+}
+
+private fun selectedTopLevelRoute(currentDestination: NavDestination?): String? =
+    topLevelDestinations.firstOrNull { item ->
+        currentDestination?.hierarchy?.any { it.route == item.route } == true
+    }?.route
+
+@Composable
+private fun TopLevelNavigationBar(
+    selectedRoute: String?,
+    onDestinationSelected: (String) -> Unit,
+) {
+    NavigationBar {
+        topLevelDestinations.forEach { item ->
+            NavigationBarItem(
+                selected = selectedRoute == item.route,
+                onClick = { onDestinationSelected(item.route) },
+                icon = { Icon(item.icon, contentDescription = null) },
+                label = { Text(stringResource(item.labelRes)) },
+            )
+        }
+    }
+}
+
+@Preview(name = "Navegación - Inicio seleccionado", showBackground = true)
+@Composable
+private fun TopLevelNavigationBarPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        TopLevelNavigationBar(selectedRoute = "home", onDestinationSelected = {})
+    }
+}
+
+@Preview(name = "Navegación - oscuro", showBackground = true)
+@Composable
+private fun TopLevelNavigationBarDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        TopLevelNavigationBar(selectedRoute = "home", onDestinationSelected = {})
+    }
+}
+
+@Preview(name = "Aplicación - claro", showBackground = true)
+@Composable
+private fun MiMusicaAppLightPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        MiMusicaAppShell(
+            selectedRoute = "home",
+            onDestinationSelected = {},
+        ) { contentModifier ->
+            Box(contentModifier) {
+                HomeScreen()
+            }
+        }
+    }
+}
+
+@Preview(name = "Aplicación - oscuro", showBackground = true)
+@Composable
+private fun MiMusicaAppDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        MiMusicaAppShell(
+            selectedRoute = "home",
+            onDestinationSelected = {},
+        ) { contentModifier ->
+            Box(contentModifier) {
+                HomeScreen()
+            }
         }
     }
 }

@@ -41,14 +41,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
+import com.example.mimusica.domain.importing.ImportReport
+import com.example.mimusica.domain.model.Song
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
+import com.example.mimusica.theme.MiMusicaTheme
 
 /**
  * Library (requisito FASE 5 §7): lista REAL de canciones Room.
@@ -85,12 +89,28 @@ fun LibraryScreen() {
         }
     }
 
+    LibraryScreenContent(
+        library = library,
+        isLoading = isLoading,
+        importState = importState,
+        onAddMusic = { pickerLauncher.launch(arrayOf("audio/*")) },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LibraryScreenContent(
+    library: List<Song>,
+    isLoading: Boolean,
+    importState: ImportState,
+    onAddMusic: () -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library)) },
                 actions = {
-                    IconButton(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) {
+                    IconButton(onClick = onAddMusic) {
                         Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.library_add_music))
                     }
                 },
@@ -126,6 +146,113 @@ fun LibraryScreen() {
                 else -> SongList(library)
             }
         }
+    }
+}
+
+@Preview(name = "Biblioteca - cargando", showBackground = true)
+@Composable
+private fun LibraryLoadingPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryScreenContent(
+            library = emptyList(),
+            isLoading = true,
+            importState = ImportState.Idle,
+            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - vacía", showBackground = true)
+@Composable
+private fun LibraryEmptyPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryScreenContent(
+            library = emptyList(),
+            isLoading = false,
+            importState = ImportState.Idle,
+            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - vacía oscura", showBackground = true)
+@Composable
+private fun LibraryEmptyDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        LibraryScreenContent(
+            library = emptyList(),
+            isLoading = false,
+            importState = ImportState.Idle,
+            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - importando", showBackground = true)
+@Composable
+private fun LibraryImportingPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryScreenContent(
+            library = emptyList(),
+            isLoading = false,
+            importState = ImportState.Running(current = 1, total = 2),
+            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - importación completada", showBackground = true)
+@Composable
+private fun LibraryImportDonePreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryScreenContent(
+            library = emptyList(),
+            isLoading = false,
+            importState = ImportState.Done(
+                ImportReport(
+                    totalRequested = 1,
+                    songsAdded = 1,
+                    duplicatesSkipped = 0,
+                    failures = emptyList(),
+                ),
+            ),
+            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - error de importación", showBackground = true)
+@Composable
+private fun LibraryImportErrorPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryScreenContent(
+            library = emptyList(),
+            isLoading = false,
+            importState = ImportState.Failed("Error de ejemplo para la vista previa"),
+            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - canciones", showBackground = true)
+@Composable
+private fun LibrarySongsPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryScreenContent(
+            library = listOf(
+                Song(
+                    uri = "preview://song",
+                    title = "Ejemplo de vista previa",
+                    artist = null,
+                    album = null,
+                    durationMs = 0,
+                    dateAddedMs = 0,
+                ),
+            ),
+            isLoading = false,
+            importState = ImportState.Idle,
+            onAddMusic = {},
+        )
     }
 }
 
@@ -256,6 +383,14 @@ fun ArtworkThumbnail(path: String?) {
             contentDescription = null,
             modifier = Modifier.padding(8.dp),
         )
+    }
+}
+
+@Preview(name = "Portada - sin imagen", showBackground = true)
+@Composable
+private fun ArtworkThumbnailPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        ArtworkThumbnail(path = null)
     }
 }
 

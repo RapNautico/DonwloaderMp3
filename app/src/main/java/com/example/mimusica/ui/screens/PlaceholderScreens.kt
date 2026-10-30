@@ -9,9 +9,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
+import com.example.mimusica.theme.MiMusicaTheme
 
 /**
  * Pantallas placeholder HONESTAS (FASE 3).
@@ -42,3 +44,35 @@ fun DownloadsScreen() = PlaceholderScreen(R.string.downloads)
 
 @Composable
 fun SettingsScreen() = PlaceholderScreen(R.string.settings)
+
+@Preview(name = "Playlists - placeholder", showBackground = true)
+@Composable
+private fun PlaylistsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        PlaylistsScreen()
+    }
+}
+
+@Preview(name = "Descargas - placeholder", showBackground = true)
+@Composable
+private fun DownloadsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        DownloadsScreen()
+    }
+}
+
+@Preview(name = "Ajustes - placeholder", showBackground = true)
+@Composable
+private fun SettingsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        SettingsScreen()
+    }
+}
+
+@Preview(name = "Placeholder - oscuro", showBackground = true)
+@Composable
+private fun PlaceholderDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        PlaceholderScreen(R.string.playlists)
+    }
+}

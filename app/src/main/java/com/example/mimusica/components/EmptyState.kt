@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -16,9 +18,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
+import com.example.mimusica.theme.MiMusicaTheme
 
 /**
  * EmptyState (DESIGN_SYSTEM.md §5).
@@ -68,5 +72,17 @@ fun EmptyState(
                 Text(ctaText)
             }
         }
+    }
+}
+
+@Preview(name = "EmptyState", showBackground = true)
+@Composable
+private fun EmptyStatePreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        EmptyState(
+            icon = Icons.Filled.MusicNote,
+            title = "Tu biblioteca está vacía",
+            description = "Selecciona archivos de audio de tu dispositivo para añadirlos a tu biblioteca local.",
+        )
     }
 }
