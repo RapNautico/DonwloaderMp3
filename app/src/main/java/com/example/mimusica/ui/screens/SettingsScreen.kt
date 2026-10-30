@@ -34,17 +34,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
+import com.example.mimusica.domain.model.AppSettings
 import com.example.mimusica.domain.model.AppThemeMode
 import com.example.mimusica.domain.model.LibraryDisplayMode
+import com.example.mimusica.domain.model.MusicScanStatus
 import com.example.mimusica.domain.model.PlaybackRepeatMode
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.settings.SettingsViewModel
+import com.example.mimusica.theme.MiMusicaTheme
 
 private enum class SettingsChoice {
     THEME,
@@ -63,9 +67,7 @@ fun SettingsScreen() {
     val scanStatus by viewModel.scanStatus.collectAsState()
     val storageBytes by viewModel.storageBytes.collectAsState()
     val storageError by viewModel.storageError.collectAsState()
-    var openChoice by remember { mutableStateOf<SettingsChoice?>(null) }
     var enableAutoScanAfterPermission by remember { mutableStateOf(false) }
-    val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val uriHandler = LocalUriHandler.current
     val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         android.Manifest.permission.READ_MEDIA_AUDIO
@@ -84,6 +86,66 @@ fun SettingsScreen() {
     }
 
     LaunchedEffect(Unit) { viewModel.refreshStorageUsage() }
+
+    val versionName = runCatching {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            ?: context.getString(R.string.settings_version_unknown)
+    }.getOrElse { context.getString(R.string.settings_version_unknown) }
+
+    SettingsScreenContent(
+        settings = settings,
+        scanStatus = scanStatus,
+        storageBytes = storageBytes,
+        storageError = storageError,
+        dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+        storageLocation = context.filesDir.absolutePath,
+        versionName = versionName,
+        onUpdate = viewModel::update,
+        onSetAutomaticScanEnabled = { enabled ->
+            if (!enabled) {
+                viewModel.setAutomaticScanEnabled(false)
+            } else if (
+                context.checkSelfPermission(audioPermission) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                viewModel.setAutomaticScanEnabled(true)
+            } else {
+                enableAutoScanAfterPermission = true
+                permissionLauncher.launch(audioPermission)
+            }
+        },
+        onScan = {
+            if (
+                context.checkSelfPermission(audioPermission) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                viewModel.scanMusicFolder()
+            } else {
+                enableAutoScanAfterPermission = false
+                permissionLauncher.launch(audioPermission)
+            }
+        },
+        onOpenLicense = uriHandler::openUri,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun SettingsScreenContent(
+    settings: AppSettings,
+    scanStatus: MusicScanStatus,
+    storageBytes: Long?,
+    storageError: Boolean,
+    dynamicColorSupported: Boolean,
+    storageLocation: String,
+    versionName: String,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onSetAutomaticScanEnabled: (Boolean) -> Unit,
+    onScan: () -> Unit,
+    onOpenLicense: (String) -> Unit,
+) {
+    var openChoice by remember { mutableStateOf<SettingsChoice?>(null) }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.settings)) }) }) { insets ->
         LazyColumn(
@@ -107,7 +169,7 @@ fun SettingsScreen() {
                     checked = settings.dynamicColor && dynamicColorSupported,
                     enabled = dynamicColorSupported,
                     onCheckedChange = { enabled ->
-                        viewModel.update { it.copy(dynamicColor = enabled) }
+                        onUpdate { it.copy(dynamicColor = enabled) }
                     },
                 )
             }
@@ -132,32 +194,10 @@ fun SettingsScreen() {
                     title = stringResource(R.string.settings_scan_automatic),
                     description = stringResource(R.string.settings_scan_automatic_description),
                     checked = settings.scanMusicFolder,
-                    onCheckedChange = { enabled ->
-                        if (!enabled) {
-                            viewModel.setAutomaticScanEnabled(false)
-                        } else if (
-                            context.checkSelfPermission(audioPermission) ==
-                            android.content.pm.PackageManager.PERMISSION_GRANTED
-                        ) {
-                            viewModel.setAutomaticScanEnabled(true)
-                        } else {
-                            enableAutoScanAfterPermission = true
-                            permissionLauncher.launch(audioPermission)
-                        }
-                    },
+                    onCheckedChange = onSetAutomaticScanEnabled,
                 )
                 Button(
-                    onClick = {
-                        if (
-                            context.checkSelfPermission(audioPermission) ==
-                            android.content.pm.PackageManager.PERMISSION_GRANTED
-                        ) {
-                            viewModel.scanMusicFolder()
-                        } else {
-                            enableAutoScanAfterPermission = false
-                            permissionLauncher.launch(audioPermission)
-                        }
-                    },
+                    onClick = onScan,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     enabled = !scanStatus.isScanning,
                 ) {
@@ -193,26 +233,20 @@ fun SettingsScreen() {
                     title = stringResource(R.string.settings_restore_session),
                     description = stringResource(R.string.settings_restore_session_description),
                     checked = settings.restoreLastSession,
-                    onCheckedChange = { enabled ->
-                        viewModel.update { it.copy(restoreLastSession = enabled) }
-                    },
+                    onCheckedChange = { enabled -> onUpdate { it.copy(restoreLastSession = enabled) } },
                 )
                 SettingsSwitchRow(
                     title = stringResource(R.string.settings_auto_resume),
                     description = stringResource(R.string.settings_auto_resume_description),
                     checked = settings.autoResumePlayback,
                     enabled = settings.restoreLastSession,
-                    onCheckedChange = { enabled ->
-                        viewModel.update { it.copy(autoResumePlayback = enabled) }
-                    },
+                    onCheckedChange = { enabled -> onUpdate { it.copy(autoResumePlayback = enabled) } },
                 )
                 SettingsSwitchRow(
                     title = stringResource(R.string.settings_default_shuffle),
                     description = stringResource(R.string.settings_new_queue_only),
                     checked = settings.defaultShuffle,
-                    onCheckedChange = { enabled ->
-                        viewModel.update { it.copy(defaultShuffle = enabled) }
-                    },
+                    onCheckedChange = { enabled -> onUpdate { it.copy(defaultShuffle = enabled) } },
                 )
                 SettingsChoiceRow(
                     title = stringResource(R.string.settings_default_repeat),
@@ -233,7 +267,7 @@ fun SettingsScreen() {
                 SettingsSectionTitle(stringResource(R.string.settings_storage))
                 SettingsInfoRow(
                     title = stringResource(R.string.settings_storage_location),
-                    description = context.filesDir.absolutePath,
+                    description = storageLocation,
                 )
                 SettingsInfoRow(
                     title = stringResource(R.string.settings_storage_audio),
@@ -258,11 +292,7 @@ fun SettingsScreen() {
                     title = stringResource(R.string.app_name),
                     description = stringResource(
                         R.string.settings_version,
-                        runCatching {
-                            @Suppress("DEPRECATION")
-                            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-                                ?: context.getString(R.string.settings_version_unknown)
-                        }.getOrElse { context.getString(R.string.settings_version_unknown) },
+                        versionName,
                     ),
                 )
                 SettingsInfoRow(
@@ -277,16 +307,14 @@ fun SettingsScreen() {
                     text = stringResource(R.string.settings_apache_license_link),
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
-                        .clickable {
-                            uriHandler.openUri("https://www.apache.org/licenses/LICENSE-2.0")
-                        }
+                        .clickable { onOpenLicense("https://www.apache.org/licenses/LICENSE-2.0") }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 )
                 Text(
                     text = stringResource(R.string.settings_sqlite_license_link),
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
-                        .clickable { uriHandler.openUri("https://sqlite.org/copyright.html") }
+                        .clickable { onOpenLicense("https://sqlite.org/copyright.html") }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
@@ -300,7 +328,7 @@ fun SettingsScreen() {
                 selected = settings.themeMode,
                 options = AppThemeMode.entries,
                 label = ::themeLabel,
-                onSelect = { value -> viewModel.update { it.copy(themeMode = value) } },
+                onSelect = { value -> onUpdate { it.copy(themeMode = value) } },
                 onDismiss = { openChoice = null },
             )
             SettingsChoice.SORT -> SettingsOptionsDialog(
@@ -308,7 +336,7 @@ fun SettingsScreen() {
                 selected = settings.defaultSongSort,
                 options = SongSort.entries,
                 label = ::sortLabel,
-                onSelect = { value -> viewModel.update { it.copy(defaultSongSort = value) } },
+                onSelect = { value -> onUpdate { it.copy(defaultSongSort = value) } },
                 onDismiss = { openChoice = null },
             )
             SettingsChoice.DISPLAY -> SettingsOptionsDialog(
@@ -316,7 +344,7 @@ fun SettingsScreen() {
                 selected = settings.libraryDisplayMode,
                 options = LibraryDisplayMode.entries,
                 label = ::displayLabel,
-                onSelect = { value -> viewModel.update { it.copy(libraryDisplayMode = value) } },
+                onSelect = { value -> onUpdate { it.copy(libraryDisplayMode = value) } },
                 onDismiss = { openChoice = null },
             )
             SettingsChoice.REPEAT -> SettingsOptionsDialog(
@@ -324,7 +352,7 @@ fun SettingsScreen() {
                 selected = settings.defaultRepeatMode,
                 options = PlaybackRepeatMode.entries,
                 label = ::repeatLabel,
-                onSelect = { value -> viewModel.update { it.copy(defaultRepeatMode = value) } },
+                onSelect = { value -> onUpdate { it.copy(defaultRepeatMode = value) } },
                 onDismiss = { openChoice = null },
             )
         }
@@ -461,3 +489,57 @@ private fun repeatLabel(value: PlaybackRepeatMode): String = stringResource(
         PlaybackRepeatMode.ONE -> R.string.player_repeat_one
     },
 )
+
+@Preview(name = "Ajustes - modo claro", showBackground = true)
+@Composable
+private fun SettingsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        SettingsScreenContent(
+            settings = AppSettings(
+                themeMode = AppThemeMode.LIGHT,
+                dynamicColor = false,
+                scanMusicFolder = true,
+            ),
+            scanStatus = MusicScanStatus(
+                hasScanned = true,
+                indexedFiles = 12,
+                addedSongs = 3,
+                duplicates = 9,
+            ),
+            storageBytes = 1_024_000L,
+            storageError = false,
+            dynamicColorSupported = true,
+            storageLocation = "/data/user/0/com.example.mimusica/files",
+            versionName = "0.1.0 (ejemplo)",
+            onUpdate = {},
+            onSetAutomaticScanEnabled = {},
+            onScan = {},
+            onOpenLicense = {},
+        )
+    }
+}
+
+@Preview(name = "Ajustes - modo oscuro", showBackground = true)
+@Composable
+private fun SettingsScreenDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        SettingsScreenContent(
+            settings = AppSettings(
+                themeMode = AppThemeMode.DARK,
+                dynamicColor = false,
+                restoreLastSession = false,
+                autoResumePlayback = false,
+            ),
+            scanStatus = MusicScanStatus(isScanning = true),
+            storageBytes = null,
+            storageError = true,
+            dynamicColorSupported = false,
+            storageLocation = "/data/user/0/com.example.mimusica/files",
+            versionName = "0.1.0 (ejemplo)",
+            onUpdate = {},
+            onSetAutomaticScanEnabled = {},
+            onScan = {},
+            onOpenLicense = {},
+        )
+    }
+}

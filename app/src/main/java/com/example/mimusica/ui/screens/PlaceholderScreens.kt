@@ -37,22 +37,7 @@ fun PlaceholderScreen(titleRes: Int) {
 }
 
 @Composable
-fun PlaylistsScreen() = PlaceholderScreen(R.string.playlists)
-
-@Composable
 fun DownloadsScreen() = PlaceholderScreen(R.string.downloads)
-<<<<<<< HEAD
-
-@Composable
-fun SettingsScreen() = PlaceholderScreen(R.string.settings)
-
-@Preview(name = "Playlists - placeholder", showBackground = true)
-@Composable
-private fun PlaylistsScreenPreview() {
-    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        PlaylistsScreen()
-    }
-}
 
 @Preview(name = "Descargas - placeholder", showBackground = true)
 @Composable
@@ -62,20 +47,10 @@ private fun DownloadsScreenPreview() {
     }
 }
 
-@Preview(name = "Ajustes - placeholder", showBackground = true)
-@Composable
-private fun SettingsScreenPreview() {
-    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        SettingsScreen()
-    }
-}
-
 @Preview(name = "Placeholder - oscuro", showBackground = true)
 @Composable
 private fun PlaceholderDarkPreview() {
     MiMusicaTheme(darkTheme = true, dynamicColor = false) {
-        PlaceholderScreen(R.string.playlists)
+        PlaceholderScreen(R.string.downloads)
     }
 }
-=======
->>>>>>> 98d1f25b45786d37b45959e76e9e9a3a07182b12

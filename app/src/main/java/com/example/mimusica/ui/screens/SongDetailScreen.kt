@@ -24,17 +24,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.ArtworkThumbnail
 import com.example.mimusica.components.formatDuration
+import com.example.mimusica.domain.model.Song
 import com.example.mimusica.presentation.library.SongDetailState
 import com.example.mimusica.presentation.library.SongDetailViewModel
 import com.example.mimusica.presentation.library.formatSongBitrate
 import com.example.mimusica.presentation.library.formatSongSampleRate
 import com.example.mimusica.presentation.library.formatSongSize
+import com.example.mimusica.theme.MiMusicaTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -195,3 +198,52 @@ private fun DetailRow(label: String, value: String?) {
 /** Fecha REAL de incorporación (epoch ms del registro Room 8.1). */
 private fun formatDateAdded(dateAddedMs: Long): String =
     SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(dateAddedMs))
+
+@Preview(name = "Detalle de canción - cargando", showBackground = true)
+@Composable
+private fun SongDetailLoadingPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        SongDetailContent(SongDetailState.Loading)
+    }
+}
+
+@Preview(name = "Detalle de canción - contenido oscuro", showBackground = true)
+@Composable
+private fun SongDetailContentPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        SongDetailContent(
+            SongDetailState.Content(
+                Song(
+                    uri = "preview://song",
+                    title = "Canción de ejemplo",
+                    artist = "Artista de ejemplo",
+                    album = "Álbum de ejemplo",
+                    durationMs = 180_000L,
+                    dateAddedMs = 1L,
+                    mimeType = "audio/mpeg",
+                    sizeBytes = 4_000_000L,
+                    bitrateBps = 192_000L,
+                    sampleRateHz = 44_100,
+                    channels = 2,
+                    genre = "Ejemplo",
+                ),
+            ),
+        )
+    }
+}
+
+@Preview(name = "Detalle de canción - no encontrada", showBackground = true)
+@Composable
+private fun SongDetailNotFoundPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        SongDetailContent(SongDetailState.NotFound)
+    }
+}
+
+@Preview(name = "Detalle de canción - error oscuro", showBackground = true)
+@Composable
+private fun SongDetailErrorPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        SongDetailContent(SongDetailState.Error("Error de ejemplo"))
+    }
+}

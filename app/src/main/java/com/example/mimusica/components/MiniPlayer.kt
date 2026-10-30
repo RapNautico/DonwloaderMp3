@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
@@ -169,12 +170,23 @@ private fun decodeArtwork(path: String?): androidx.compose.ui.graphics.ImageBitm
     }
 }
 
-@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Preview(name = "MiniPlayer - claro", showBackground = true)
 @Composable
 private fun MiniPlayerPreview() {
-<<<<<<< HEAD
     MiMusicaTheme(dynamicColor = false) {
-        MiniPlayer()
+        MiniPlayer(
+            state = PlaybackState(
+                queue = listOf(
+                    PlaybackTrack("preview://song", "Canción de ejemplo", "Artista de ejemplo", null),
+                ),
+                currentIndex = 0,
+                isPlaying = true,
+                canSkipNext = true,
+            ),
+            onTogglePlayPause = {},
+            onNext = {},
+            onExpand = {},
+        )
     }
 }
 
@@ -182,18 +194,18 @@ private fun MiniPlayerPreview() {
 @Composable
 private fun MiniPlayerDarkPreview() {
     MiMusicaTheme(darkTheme = true, dynamicColor = false) {
-        MiniPlayer()
-=======
-    MiMusicaTheme {
         MiniPlayer(
             state = PlaybackState(
-                queue = listOf(PlaybackTrack("content://demo", "Canción", "Artista", null)),
+                queue = listOf(
+                    PlaybackTrack("preview://song", "Canción de ejemplo", "Artista de ejemplo", null),
+                ),
                 currentIndex = 0,
+                isPlaying = true,
+                canSkipNext = true,
             ),
             onTogglePlayPause = {},
             onNext = {},
             onExpand = {},
         )
->>>>>>> 98d1f25b45786d37b45959e76e9e9a3a07182b12
     }
 }

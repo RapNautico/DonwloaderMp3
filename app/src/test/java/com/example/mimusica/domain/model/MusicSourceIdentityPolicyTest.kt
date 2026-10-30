@@ -21,8 +21,16 @@ class MusicSourceIdentityPolicyTest {
     @Test
     fun `identidad limita la carpeta music y rechaza path traversal`() {
         assertEquals(null, MusicSourceIdentityKey.fromRelativePath("primary", "Download/song.mp3"))
-        assertEquals(null, MusicSourceIdentityKey.fromRelativePath("primary", "music/song.mp3"))
         assertEquals(null, MusicSourceIdentityKey.fromRelativePath("primary", "Music/../Pictures/song.mp3"))
+        assertEquals(null, MusicSourceIdentityKey.fromRelativePath("primary", "MusicBackup/song.mp3"))
+    }
+
+    @Test
+    fun `identidad de Music no depende de mayusculas de carpeta`() {
+        assertEquals(
+            "music:primary:Music/Albums/song.mp3",
+            MusicSourceIdentityKey.fromRelativePath("primary", "mUsIc/Albums/song.mp3"),
+        )
     }
 
     @Test

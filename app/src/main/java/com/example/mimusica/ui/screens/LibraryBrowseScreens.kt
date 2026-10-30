@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
@@ -47,10 +48,14 @@ import com.example.mimusica.components.EmptyState
 import com.example.mimusica.components.LibraryLoadError
 import com.example.mimusica.components.LibraryLoadingSkeleton
 import com.example.mimusica.components.SongList
+import com.example.mimusica.domain.model.AlbumSummary
+import com.example.mimusica.domain.model.ArtistSummary
+import com.example.mimusica.domain.model.Song
 import com.example.mimusica.presentation.library.AlbumsViewModel
 import com.example.mimusica.presentation.library.ArtistsViewModel
 import com.example.mimusica.presentation.library.GroupDetailState
 import com.example.mimusica.presentation.library.GroupDetailViewModel
+import com.example.mimusica.theme.MiMusicaTheme
 
 /**
  * Vistas de exploración por ARTISTAS y ÁLBUMES (FASE 8.4, PLAN 8.4):
@@ -105,15 +110,35 @@ fun ArtistsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    GroupScreenScaffold(
+    ArtistsScreenContent(
         title = stringResource(R.string.library_artists_title),
+        artists = artists,
+        isLoading = isLoading,
+        error = error,
         onBack = onBack,
-    ) {
+        onOpenArtist = onOpenArtist,
+        onSelectTab = onSelectTab,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+private fun ArtistsScreenContent(
+    title: String,
+    artists: List<ArtistSummary>,
+    isLoading: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onOpenArtist: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
+    onRetry: () -> Unit,
+) {
+    GroupScreenScaffold(title = title, onBack = onBack) {
         LibrarySectionTabs(LibraryTab.ARTISTS, onSelectTab)
-        GroupErrorBanner(error.takeIf { artists.isNotEmpty() }, viewModel::retry)
+        GroupErrorBanner(error.takeIf { artists.isNotEmpty() }, onRetry)
         when {
             isLoading && artists.isEmpty() -> LibraryLoadingSkeleton()
-            error != null && artists.isEmpty() -> LibraryLoadError(viewModel::retry)
+            error != null && artists.isEmpty() -> LibraryLoadError(onRetry)
             artists.isEmpty() -> Centered {
                 EmptyState(
                     icon = Icons.Filled.Person,
@@ -150,15 +175,35 @@ fun AlbumsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    GroupScreenScaffold(
+    AlbumsScreenContent(
         title = stringResource(R.string.library_albums_title),
+        albums = albums,
+        isLoading = isLoading,
+        error = error,
         onBack = onBack,
-    ) {
+        onOpenAlbum = onOpenAlbum,
+        onSelectTab = onSelectTab,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+private fun AlbumsScreenContent(
+    title: String,
+    albums: List<AlbumSummary>,
+    isLoading: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onOpenAlbum: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
+    onRetry: () -> Unit,
+) {
+    GroupScreenScaffold(title = title, onBack = onBack) {
         LibrarySectionTabs(LibraryTab.ALBUMS, onSelectTab)
-        GroupErrorBanner(error.takeIf { albums.isNotEmpty() }, viewModel::retry)
+        GroupErrorBanner(error.takeIf { albums.isNotEmpty() }, onRetry)
         when {
             isLoading && albums.isEmpty() -> LibraryLoadingSkeleton()
-            error != null && albums.isEmpty() -> LibraryLoadError(viewModel::retry)
+            error != null && albums.isEmpty() -> LibraryLoadError(onRetry)
             albums.isEmpty() -> Centered {
                 EmptyState(
                     icon = Icons.Filled.Album,
@@ -196,12 +241,13 @@ fun ArtistDetailScreen(
     )
     val estado by viewModel.state.collectAsState()
 
-    GroupScreenScaffold(
+    GroupDetailScreenContent(
         title = name ?: stringResource(R.string.library_unknown_artist),
+        state = estado,
         onBack = onBack,
-    ) {
-        GroupDetailContent(estado, onSongOpen, viewModel::retry)
-    }
+        onSongOpen = onSongOpen,
+        onRetry = viewModel::retry,
+    )
 }
 
 /** Detalle de UN ÁLBUM: sus canciones con el orden SQL de 8.2 (getByAlbum). */
@@ -217,11 +263,25 @@ fun AlbumDetailScreen(
     )
     val estado by viewModel.state.collectAsState()
 
-    GroupScreenScaffold(
+    GroupDetailScreenContent(
         title = name ?: stringResource(R.string.library_unknown_album),
+        state = estado,
         onBack = onBack,
-    ) {
-        GroupDetailContent(estado, onSongOpen, viewModel::retry)
+        onSongOpen = onSongOpen,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+private fun GroupDetailScreenContent(
+    title: String,
+    state: GroupDetailState,
+    onBack: () -> Unit,
+    onSongOpen: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    GroupScreenScaffold(title = title, onBack = onBack) {
+        GroupDetailContent(state, onSongOpen, onRetry)
     }
 }
 
@@ -365,6 +425,127 @@ private fun GroupErrorBanner(error: String?, onRetry: (() -> Unit)? = null) {
 private fun Centered(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         content()
+    }
+}
+
+@Preview(name = "Artistas - contenido", showBackground = true)
+@Composable
+private fun ArtistsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        ArtistsScreenContent(
+            title = "Artistas",
+            artists = listOf(ArtistSummary("Artista de ejemplo", 3), ArtistSummary(null, 1)),
+            isLoading = false,
+            error = null,
+            onBack = {},
+            onOpenArtist = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Artistas - error oscuro", showBackground = true)
+@Composable
+private fun ArtistsErrorPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        ArtistsScreenContent(
+            title = "Artistas",
+            artists = emptyList(),
+            isLoading = false,
+            error = "Error de ejemplo",
+            onBack = {},
+            onOpenArtist = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Álbumes - contenido", showBackground = true)
+@Composable
+private fun AlbumsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        AlbumsScreenContent(
+            title = "Álbumes",
+            albums = listOf(AlbumSummary("Álbum de ejemplo", 8), AlbumSummary(null, 2)),
+            isLoading = false,
+            error = null,
+            onBack = {},
+            onOpenAlbum = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Álbumes - vacío oscuro", showBackground = true)
+@Composable
+private fun AlbumsEmptyPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        AlbumsScreenContent(
+            title = "Álbumes",
+            albums = emptyList(),
+            isLoading = false,
+            error = null,
+            onBack = {},
+            onOpenAlbum = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de artista - contenido", showBackground = true)
+@Composable
+private fun ArtistDetailPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        GroupDetailScreenContent(
+            title = "Artista de ejemplo",
+            state = GroupDetailState.Content(
+                listOf(
+                    Song(
+                        uri = "preview://song",
+                        title = "Canción de ejemplo",
+                        artist = "Artista de ejemplo",
+                        album = "Álbum de ejemplo",
+                        durationMs = 180_000L,
+                        dateAddedMs = 1L,
+                    ),
+                ),
+            ),
+            onBack = {},
+            onSongOpen = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de álbum - cargando oscuro", showBackground = true)
+@Composable
+private fun AlbumDetailLoadingPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        GroupDetailScreenContent(
+            title = "Álbum de ejemplo",
+            state = GroupDetailState.Loading,
+            onBack = {},
+            onSongOpen = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de grupo - error", showBackground = true)
+@Composable
+private fun GroupDetailErrorPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        GroupDetailScreenContent(
+            title = "Grupo de ejemplo",
+            state = GroupDetailState.Error("Error de ejemplo"),
+            onBack = {},
+            onSongOpen = {},
+            onRetry = {},
+        )
     }
 }
 

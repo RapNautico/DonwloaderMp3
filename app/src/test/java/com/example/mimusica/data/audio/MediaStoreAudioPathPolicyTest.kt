@@ -6,11 +6,22 @@ import org.junit.Test
 
 class MediaStoreAudioPathPolicyTest {
     @Test
-    fun `incluye Audio raiz y subcarpetas sin incluir Music`() {
+    fun `incluye Music y Audio raiz y subcarpetas`() {
+        assertTrue(MediaStoreAudioPathPolicy.includes("Music"))
+        assertTrue(MediaStoreAudioPathPolicy.includes("Music/"))
+        assertTrue(MediaStoreAudioPathPolicy.includes("Music/Albums/"))
         assertTrue(MediaStoreAudioPathPolicy.includes("Audio"))
         assertTrue(MediaStoreAudioPathPolicy.includes("Audio/"))
         assertTrue(MediaStoreAudioPathPolicy.includes("Audio/Albums/"))
-        assertFalse(MediaStoreAudioPathPolicy.includes("Music/Albums/"))
+    }
+
+    @Test
+    fun `excluye otras carpetas y variaciones inesperadas de rutas`() {
+        assertFalse(MediaStoreAudioPathPolicy.includes(null))
+        assertFalse(MediaStoreAudioPathPolicy.includes(""))
+        assertFalse(MediaStoreAudioPathPolicy.includes("Download/"))
+        assertFalse(MediaStoreAudioPathPolicy.includes("MusicBackup/Albums/"))
+        assertFalse(MediaStoreAudioPathPolicy.includes("AudioMix/"))
     }
 
     @Test
@@ -36,6 +47,7 @@ class MediaStoreAudioPathPolicyTest {
             "android/MEDIA/COM.WHATSAPP/whatsapp/media/whatsapp voice notes/",
         )
         assertTrue(MediaStoreAudioPathPolicy.includes("aUdIo/Albums/"))
+        assertTrue(MediaStoreAudioPathPolicy.includes("mUsIc/Albums/"))
     }
 
     @Test

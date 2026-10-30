@@ -96,47 +96,97 @@ data class PlaylistDetailUiState(
     val operationError: String? = null,
 )
 
+class PlaylistDetailModel(
+    private val playlistRepository: PlaylistRepository,
+    private val songRepository: com.example.mimusica.domain.repository.SongRepository,
+    private val playlistId: Long,
+) {
+    private val mutableState = MutableStateFlow(PlaylistDetailUiState())
+    val state: StateFlow<PlaylistDetailUiState> = mutableState.asStateFlow()
+    private var playlistLoadError: String? = null
+    private var libraryLoadError: String? = null
+    private var playlistJob: Job? = null
+    private var libraryJob: Job? = null
+
+    fun startIn(scope: kotlinx.coroutines.CoroutineScope) {
+        observePlaylist(scope)
+        observeLibrary(scope)
+    }
+
+    fun retryIn(scope: kotlinx.coroutines.CoroutineScope) {
+        playlistJob?.cancel()
+        libraryJob?.cancel()
+        playlistLoadError = null
+        libraryLoadError = null
+        mutableState.value = mutableState.value.copy(isLoading = true, error = null)
+        startIn(scope)
+    }
+
+    fun clearOperationError() {
+        mutableState.value = mutableState.value.copy(operationError = null)
+    }
+
+    fun setOperationError(message: String) {
+        mutableState.value = mutableState.value.copy(operationError = message)
+    }
+
+    private fun observePlaylist(scope: kotlinx.coroutines.CoroutineScope) {
+        playlistJob = scope.launch {
+            playlistRepository.observePlaylist(playlistId)
+                .catch { failure ->
+                    if (failure is CancellationException) throw failure
+                    playlistLoadError = failure.message ?: "No se pudo cargar la playlist."
+                    mutableState.value = mutableState.value.copy(
+                        isLoading = false,
+                        error = playlistLoadError ?: libraryLoadError,
+                    )
+                }
+                .collect { playlist ->
+                    playlistLoadError = null
+                    mutableState.value = mutableState.value.copy(
+                        playlist = playlist,
+                        isLoading = false,
+                        error = libraryLoadError,
+                    )
+                }
+        }
+    }
+
+    private fun observeLibrary(scope: kotlinx.coroutines.CoroutineScope) {
+        libraryJob = scope.launch {
+            songRepository.observeLibrary()
+                .catch { failure ->
+                    if (failure is CancellationException) throw failure
+                    libraryLoadError = failure.message ?: "No se pudo cargar la biblioteca."
+                    mutableState.value = mutableState.value.copy(
+                        isLoading = false,
+                        error = playlistLoadError ?: libraryLoadError,
+                    )
+                }
+                .collect { songs ->
+                    libraryLoadError = null
+                    mutableState.value = mutableState.value.copy(
+                        librarySongs = songs,
+                        error = playlistLoadError,
+                    )
+                }
+        }
+    }
+}
+
 class PlaylistDetailViewModel(
     private val playlistRepository: PlaylistRepository,
     songRepository: com.example.mimusica.domain.repository.SongRepository,
     private val playlistId: Long,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(PlaylistDetailUiState())
-    val state: StateFlow<PlaylistDetailUiState> = mutableState.asStateFlow()
+    private val model = PlaylistDetailModel(playlistRepository, songRepository, playlistId)
+    val state: StateFlow<PlaylistDetailUiState> = model.state
 
     init {
-        viewModelScope.launch {
-            try {
-                playlistRepository.observePlaylist(playlistId).collect { playlist ->
-                    mutableState.value = mutableState.value.copy(
-                        playlist = playlist,
-                        isLoading = false,
-                        error = null,
-                    )
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                mutableState.value = mutableState.value.copy(
-                    isLoading = false,
-                    error = failure.message ?: "No se pudo cargar la playlist.",
-                )
-            }
-        }
-        viewModelScope.launch {
-            try {
-                songRepository.observeLibrary().collect { songs ->
-                    mutableState.value = mutableState.value.copy(librarySongs = songs)
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                mutableState.value = mutableState.value.copy(
-                    error = failure.message ?: "No se pudo cargar la biblioteca.",
-                )
-            }
-        }
+        model.startIn(viewModelScope)
     }
+
+    fun retry() = model.retryIn(viewModelScope)
 
     fun addSong(uri: String) = runOperation {
         playlistRepository.addSong(playlistId, uri)
@@ -147,7 +197,7 @@ class PlaylistDetailViewModel(
     }
 
     fun moveSong(fromIndex: Int, toIndex: Int) = runOperation {
-        val songs = mutableState.value.playlist?.songs.orEmpty()
+        val songs = state.value.playlist?.songs.orEmpty()
         if (fromIndex !in songs.indices || toIndex !in songs.indices) return@runOperation
         val reordered = songs.toMutableList().apply {
             add(toIndex, removeAt(fromIndex))
@@ -157,15 +207,13 @@ class PlaylistDetailViewModel(
 
     private fun <T> runOperation(operation: suspend () -> T) {
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(operationError = null)
+            model.clearOperationError()
             try {
                 operation()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                mutableState.value = mutableState.value.copy(
-                    operationError = failure.message ?: "No se pudo completar la operación.",
-                )
+                model.setOperationError(failure.message ?: "No se pudo completar la operación.")
             }
         }
     }

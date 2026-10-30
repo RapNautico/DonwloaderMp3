@@ -45,40 +45,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-<<<<<<< HEAD
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.text.style.TextOverflow
-=======
 import androidx.compose.ui.res.pluralStringResource
->>>>>>> 98d1f25b45786d37b45959e76e9e9a3a07182b12
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
-<<<<<<< HEAD
-import com.example.mimusica.domain.importing.ImportReport
-import com.example.mimusica.domain.model.Song
-import com.example.mimusica.presentation.library.ImportState
-import com.example.mimusica.presentation.library.LibraryViewModel
-import com.example.mimusica.theme.MiMusicaTheme
-=======
 import com.example.mimusica.components.LibraryLoadError
 import com.example.mimusica.components.LibraryLoadingSkeleton
-import com.example.mimusica.components.SongList
 import com.example.mimusica.components.SongGrid
+import com.example.mimusica.components.SongList
 import com.example.mimusica.components.SongRowMenu
+import com.example.mimusica.domain.importing.ImportReport
+import com.example.mimusica.domain.model.AppSettings
+import com.example.mimusica.domain.model.LibraryDisplayMode
+import com.example.mimusica.domain.model.PlaylistSummary
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
+import com.example.mimusica.presentation.library.LibraryListModel
+import com.example.mimusica.presentation.library.LibraryLoadState
 import com.example.mimusica.presentation.library.LibraryViewModel
+import com.example.mimusica.presentation.playlist.PlaylistsUiState
 import com.example.mimusica.presentation.playlist.PlaylistsViewModel
 import com.example.mimusica.presentation.settings.SettingsViewModel
-import com.example.mimusica.domain.model.PlaylistSummary
-import com.example.mimusica.domain.model.LibraryDisplayMode
->>>>>>> 98d1f25b45786d37b45959e76e9e9a3a07182b12
+import com.example.mimusica.theme.MiMusicaTheme
 
 /**
  * Library (requisito FASE 5 §7): lista REAL de canciones Room.
@@ -117,8 +111,6 @@ fun LibraryScreen(
     val manageBusy by viewModel.manageBusy.collectAsState()
     val manageError by viewModel.manageError.collectAsState()
     val fileAvailability by viewModel.fileAvailability.collectAsState()
-    var pendingDelete by remember { mutableStateOf<Song?>(null) }
-    var pendingPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var pendingUris by remember { mutableStateOf<List<String>?>(null) }
 
     // El permiso persistible SE PIDE en el contexto de la actividad (tras el pick).
@@ -141,39 +133,74 @@ fun LibraryScreen(
     }
 
     LibraryScreenContent(
-        library = library,
-        isLoading = isLoading,
+        libraryState = libraryState,
+        visibleState = visibleState,
+        searchError = searchError,
         importState = importState,
-        onAddMusic = { pickerLauncher.launch(arrayOf("audio/*")) },
+        searchQuery = searchQuery,
+        manageBusy = manageBusy,
+        manageError = manageError,
+        fileAvailability = fileAvailability,
+        playlistsState = playlistsState,
+        appSettings = appSettings,
+        onSelectTab = onSelectTab,
+        onOpenSong = onOpenSong,
+        onPlaySongs = onPlaySongs,
+        onOpenPlaylists = onOpenPlaylists,
+        onAddMusic = onImport,
+        onSearchQueryChange = viewModel::onSearchQueryChange,
+        onClearSearch = viewModel::clearSearch,
+        onSortChange = viewModel::onSortChange,
+        onRetryLibraryLoad = viewModel::retryLibraryLoad,
+        onDismissImportResult = viewModel::dismissImportResult,
+        onCheckLibrarySongFile = viewModel::checkLibrarySongFile,
+        onDeleteLibrarySong = viewModel::deleteLibrarySong,
+        onAddSongToPlaylist = playlistsViewModel::addSong,
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryScreenContent(
-    library: List<Song>,
-    isLoading: Boolean,
+    libraryState: LibraryLoadState,
+    visibleState: LibraryListModel.VisibleSongs,
+    searchError: String?,
     importState: ImportState,
+    searchQuery: String,
+    manageBusy: Boolean,
+    manageError: String?,
+    fileAvailability: Map<String, SongFileAvailability>,
+    playlistsState: PlaylistsUiState,
+    appSettings: AppSettings,
+    onSelectTab: (LibraryTab) -> Unit,
+    onOpenSong: (String) -> Unit,
+    onPlaySongs: (List<Song>, String) -> Unit,
+    onOpenPlaylists: () -> Unit,
     onAddMusic: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    onSortChange: (SongSort) -> Unit,
+    onRetryLibraryLoad: () -> Unit,
+    onDismissImportResult: () -> Unit,
+    onCheckLibrarySongFile: (String) -> Unit,
+    onDeleteLibrarySong: (String) -> Unit,
+    onAddSongToPlaylist: (Long, String) -> Unit,
 ) {
+    val library = libraryState.songs
+    val visibleSongs = visibleState.songs
+    var pendingDelete by remember { mutableStateOf<Song?>(null) }
+    var pendingPlaylistSong by remember { mutableStateOf<Song?>(null) }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library)) },
-<<<<<<< HEAD
-                actions = {
-                    IconButton(onClick = onAddMusic) {
-                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.library_add_music))
-                    }
-                },
-=======
->>>>>>> 98d1f25b45786d37b45959e76e9e9a3a07182b12
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = onImport,
+                onClick = onAddMusic,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text(stringResource(R.string.library_add_music)) },
             )
@@ -190,7 +217,7 @@ private fun LibraryScreenContent(
                 is ImportState.Running -> ImportProgressBanner(import.current, import.total)
                 is ImportState.Done -> ImportResultBanner(
                     report = import.report,
-                    onDismiss = viewModel::dismissImportResult,
+                    onDismiss = onDismissImportResult,
                 )
                 is ImportState.Failed -> ImportErrorBanner(import.message)
                 ImportState.Idle -> Unit
@@ -213,14 +240,14 @@ private fun LibraryScreenContent(
             // debounce en el ViewModel, "≡" de orden bajo la búsqueda):
             SearchField(
                 query = searchQuery,
-                onQueryChange = viewModel::onSearchQueryChange,
-                onClear = viewModel::clearSearch,
+                onQueryChange = onSearchQueryChange,
+                onClear = onClearSearch,
             )
-            SortMenu(onSortChange = viewModel::onSortChange)
+            SortMenu(onSortChange = onSortChange)
 
             when {
                 libraryState.error != null && library.isEmpty() -> LibraryLoadError(
-                    onRetry = viewModel::retryLibraryLoad,
+                    onRetry = onRetryLibraryLoad,
                 )
 
                 libraryState.isLoading && library.isEmpty() -> LibraryLoadingSkeleton()
@@ -233,7 +260,7 @@ private fun LibraryScreenContent(
                         title = stringResource(R.string.library_empty_title),
                         description = stringResource(R.string.library_empty_description),
                         ctaTextRes = R.string.library_add_music,
-                        onCtaClick = onImport,
+                        onCtaClick = onAddMusic,
                     )
                 }
 
@@ -251,7 +278,7 @@ private fun LibraryScreenContent(
 
                 else -> {
                     if (libraryState.error != null) {
-                        LibraryLoadErrorBanner(onRetry = viewModel::retryLibraryLoad)
+                        LibraryLoadErrorBanner(onRetry = onRetryLibraryLoad)
                     }
                     val menuFactory: (Song) -> SongRowMenu = { song ->
                             SongRowMenu(
@@ -260,7 +287,7 @@ private fun LibraryScreenContent(
                                 onInformation = { onOpenSong(song.uri) },
                                 // La eliminación siempre requiere confirmación.
                                 onDelete = { pendingDelete = song },
-                                onCheckFile = { viewModel.checkLibrarySongFile(song.uri) },
+                                onCheckFile = { onCheckLibrarySongFile(song.uri) },
                                 isCheckingFile = fileAvailability[song.uri] == SongFileAvailability.CHECKING,
                             )
                         }
@@ -299,7 +326,7 @@ private fun LibraryScreenContent(
                 TextButton(
                     onClick = {
                         pendingDelete = null
-                        viewModel.deleteLibrarySong(cancion.uri)
+                        onDeleteLibrarySong(cancion.uri)
                     },
                     enabled = !manageBusy,
                 ) {
@@ -326,7 +353,7 @@ private fun LibraryScreenContent(
             playlists = playlistsState.playlists,
             loadError = playlistsState.loadError,
             onSelect = { playlistId ->
-                playlistsViewModel.addSong(playlistId, song.uri)
+                onAddSongToPlaylist(playlistId, song.uri)
                 pendingPlaylistSong = null
             },
             onOpenPlaylists = {
@@ -412,11 +439,13 @@ private fun AddSongToPlaylistDialog(
 @Composable
 private fun LibraryLoadingPreview() {
     MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        LibraryScreenContent(
-            library = emptyList(),
-            isLoading = true,
-            importState = ImportState.Idle,
-            onAddMusic = {},
+        LibraryPreviewContent(
+            libraryState = LibraryLoadState(isLoading = true),
+            visibleState = LibraryListModel.VisibleSongs(
+                songs = emptyList(),
+                error = null,
+                isLoading = true,
+            ),
         )
     }
 }
@@ -425,12 +454,7 @@ private fun LibraryLoadingPreview() {
 @Composable
 private fun LibraryEmptyPreview() {
     MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        LibraryScreenContent(
-            library = emptyList(),
-            isLoading = false,
-            importState = ImportState.Idle,
-            onAddMusic = {},
-        )
+        LibraryPreviewContent()
     }
 }
 
@@ -438,12 +462,7 @@ private fun LibraryEmptyPreview() {
 @Composable
 private fun LibraryEmptyDarkPreview() {
     MiMusicaTheme(darkTheme = true, dynamicColor = false) {
-        LibraryScreenContent(
-            library = emptyList(),
-            isLoading = false,
-            importState = ImportState.Idle,
-            onAddMusic = {},
-        )
+        LibraryPreviewContent()
     }
 }
 
@@ -451,11 +470,8 @@ private fun LibraryEmptyDarkPreview() {
 @Composable
 private fun LibraryImportingPreview() {
     MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        LibraryScreenContent(
-            library = emptyList(),
-            isLoading = false,
+        LibraryPreviewContent(
             importState = ImportState.Running(current = 1, total = 2),
-            onAddMusic = {},
         )
     }
 }
@@ -464,9 +480,7 @@ private fun LibraryImportingPreview() {
 @Composable
 private fun LibraryImportDonePreview() {
     MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        LibraryScreenContent(
-            library = emptyList(),
-            isLoading = false,
+        LibraryPreviewContent(
             importState = ImportState.Done(
                 ImportReport(
                     totalRequested = 1,
@@ -475,7 +489,6 @@ private fun LibraryImportDonePreview() {
                     failures = emptyList(),
                 ),
             ),
-            onAddMusic = {},
         )
     }
 }
@@ -484,11 +497,21 @@ private fun LibraryImportDonePreview() {
 @Composable
 private fun LibraryImportErrorPreview() {
     MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        LibraryScreenContent(
-            library = emptyList(),
-            isLoading = false,
+        LibraryPreviewContent(
             importState = ImportState.Failed("Error de ejemplo para la vista previa"),
-            onAddMusic = {},
+        )
+    }
+}
+
+@Preview(name = "Biblioteca - error al cargar", showBackground = true)
+@Composable
+private fun LibraryLoadErrorPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        LibraryPreviewContent(
+            libraryState = LibraryLoadState(
+                isLoading = false,
+                error = "Error de ejemplo para la vista previa",
+            ),
         )
     }
 }
@@ -496,23 +519,63 @@ private fun LibraryImportErrorPreview() {
 @Preview(name = "Biblioteca - canciones", showBackground = true)
 @Composable
 private fun LibrarySongsPreview() {
+    val exampleSongs = listOf(
+        Song(
+            uri = "preview://song",
+            title = "Ejemplo de vista previa",
+            artist = null,
+            album = null,
+            durationMs = 0,
+            dateAddedMs = 0,
+        ),
+    )
     MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        LibraryScreenContent(
-            library = listOf(
-                Song(
-                    uri = "preview://song",
-                    title = "Ejemplo de vista previa",
-                    artist = null,
-                    album = null,
-                    durationMs = 0,
-                    dateAddedMs = 0,
-                ),
+        LibraryPreviewContent(
+            libraryState = LibraryLoadState(songs = exampleSongs, isLoading = false),
+            visibleState = LibraryListModel.VisibleSongs(
+                songs = exampleSongs,
+                error = null,
+                isLoading = false,
             ),
-            isLoading = false,
-            importState = ImportState.Idle,
-            onAddMusic = {},
         )
     }
+}
+
+@Composable
+private fun LibraryPreviewContent(
+    libraryState: LibraryLoadState = LibraryLoadState(isLoading = false),
+    visibleState: LibraryListModel.VisibleSongs = LibraryListModel.VisibleSongs(
+        songs = emptyList(),
+        error = null,
+        isLoading = false,
+    ),
+    importState: ImportState = ImportState.Idle,
+) {
+    LibraryScreenContent(
+        libraryState = libraryState,
+        visibleState = visibleState,
+        searchError = null,
+        importState = importState,
+        searchQuery = "",
+        manageBusy = false,
+        manageError = null,
+        fileAvailability = emptyMap(),
+        playlistsState = PlaylistsUiState(isLoading = false),
+        appSettings = AppSettings(),
+        onSelectTab = {},
+        onOpenSong = {},
+        onPlaySongs = { _, _ -> },
+        onOpenPlaylists = {},
+        onAddMusic = {},
+        onSearchQueryChange = {},
+        onClearSearch = {},
+        onSortChange = {},
+        onRetryLibraryLoad = {},
+        onDismissImportResult = {},
+        onCheckLibrarySongFile = {},
+        onDeleteLibrarySong = {},
+        onAddSongToPlaylist = { _, _ -> },
+    )
 }
 
 @Composable
@@ -740,36 +803,6 @@ private fun SortMenu(
 }
 
 @Composable
-<<<<<<< HEAD
-fun ArtworkThumbnail(path: String?) {
-    // FASE 5: placeholder SIEMPRE (no decodificamos Bitmap todavía; la copia se
-    // hace disponible para reproducir/miniaturas sin reabrir la URI de SAF).
-    Surface(
-        modifier = Modifier.size(40.dp),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Icon(
-            Icons.Filled.MusicNote,
-            contentDescription = null,
-            modifier = Modifier.padding(8.dp),
-        )
-    }
-}
-
-@Preview(name = "Portada - sin imagen", showBackground = true)
-@Composable
-private fun ArtworkThumbnailPreview() {
-    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
-        ArtworkThumbnail(path = null)
-    }
-}
-
-private fun formatDuration(durationMs: Long): String {
-    if (durationMs <= 0) return "--:--"
-    val total = durationMs / 1000
-    return "%d:%02d".format(total / 60, total % 60)
-=======
 private fun sortLabel(sort: SongSort): String = when (sort) {
     SongSort.TITLE_ASC -> stringResource(R.string.library_sort_title_asc)
     SongSort.TITLE_DESC -> stringResource(R.string.library_sort_title_desc)
@@ -778,5 +811,4 @@ private fun sortLabel(sort: SongSort): String = when (sort) {
     SongSort.DATE_ADDED_DESC -> stringResource(R.string.library_sort_recent_first)
     SongSort.DATE_ADDED_ASC -> stringResource(R.string.library_sort_oldest_first)
     SongSort.DURATION_DESC -> stringResource(R.string.library_sort_duration_desc)
->>>>>>> 98d1f25b45786d37b45959e76e9e9a3a07182b12
 }

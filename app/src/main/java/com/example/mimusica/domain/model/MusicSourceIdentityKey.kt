@@ -7,7 +7,7 @@ object MusicSourceIdentityKey {
     fun fromRelativePath(volumeName: String, relativePath: String): String? {
         val normalizedPath = relativePath.replace('\\', '/')
         val directory = when {
-            normalizedPath.startsWith(MUSIC_DIRECTORY) -> "Music"
+            normalizedPath.startsWith(MUSIC_DIRECTORY, ignoreCase = true) -> "Music"
             normalizedPath.startsWith(AUDIO_DIRECTORY, ignoreCase = true) -> "Audio"
             else -> return null
         }

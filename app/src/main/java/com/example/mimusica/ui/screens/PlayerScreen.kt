@@ -49,15 +49,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.mimusica.R
 import com.example.mimusica.components.EmptyState
 import com.example.mimusica.components.PlaybackArtwork
+import com.example.mimusica.domain.model.PlaybackState
 import com.example.mimusica.domain.model.PlaybackStatus
 import com.example.mimusica.domain.model.PlaybackRepeatMode
 import com.example.mimusica.domain.model.PlaybackTrack
 import com.example.mimusica.presentation.player.PlayerViewModel
+import com.example.mimusica.theme.MiMusicaTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +69,40 @@ fun PlayerScreen(
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
+    PlayerScreenContent(
+        state = state,
+        onBack = onBack,
+        onSeekTo = viewModel::seekTo,
+        onPrevious = viewModel::skipToPrevious,
+        onBackTen = { viewModel.seekBy(-10_000L) },
+        onToggle = viewModel::togglePlayPause,
+        onForwardTen = { viewModel.seekBy(10_000L) },
+        onNext = viewModel::skipToNext,
+        onSetVolume = viewModel::setVolume,
+        onCycleRepeatMode = viewModel::cycleRepeatMode,
+        onToggleShuffle = viewModel::toggleShuffle,
+        onPlayTrackAt = viewModel::playTrackAt,
+        onStop = viewModel::stop,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlayerScreenContent(
+    state: PlaybackState,
+    onBack: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onPrevious: () -> Unit,
+    onBackTen: () -> Unit,
+    onToggle: () -> Unit,
+    onForwardTen: () -> Unit,
+    onNext: () -> Unit,
+    onSetVolume: (Float) -> Unit,
+    onCycleRepeatMode: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onPlayTrackAt: (Int) -> Unit,
+    onStop: () -> Unit,
+) {
     val track = state.currentTrack
     var seekValue by remember { mutableFloatStateOf(0f) }
     var isSeeking by remember { mutableStateOf(false) }
@@ -168,7 +205,7 @@ fun PlayerScreen(
                             isSeeking = true
                         },
                         onValueChangeFinished = {
-                            if (isSeeking) viewModel.seekTo(seekValue.toLong())
+                            if (isSeeking) onSeekTo(seekValue.toLong())
                             isSeeking = false
                         },
                         valueRange = 0f..state.durationMs.coerceAtLeast(1L).toFloat(),
@@ -188,16 +225,16 @@ fun PlayerScreen(
                     }
                     PlaybackControls(
                         state = state,
-                        onPrevious = viewModel::skipToPrevious,
-                        onBackTen = { viewModel.seekBy(-10_000L) },
-                        onToggle = viewModel::togglePlayPause,
-                        onForwardTen = { viewModel.seekBy(10_000L) },
-                        onNext = viewModel::skipToNext,
+                        onPrevious = onPrevious,
+                        onBackTen = onBackTen,
+                        onToggle = onToggle,
+                        onForwardTen = onForwardTen,
+                        onNext = onNext,
                     )
                     PlaybackModeControls(
                         state = state,
-                        onCycleRepeatMode = viewModel::cycleRepeatMode,
-                        onToggleShuffle = viewModel::toggleShuffle,
+                        onCycleRepeatMode = onCycleRepeatMode,
+                        onToggleShuffle = onToggleShuffle,
                     )
                     Row(
                         modifier = Modifier
@@ -211,7 +248,7 @@ fun PlayerScreen(
                         )
                         Slider(
                             value = state.volume,
-                            onValueChange = viewModel::setVolume,
+                            onValueChange = onSetVolume,
                             valueRange = 0f..1f,
                             modifier = Modifier
                                 .weight(1f)
@@ -242,7 +279,7 @@ fun PlayerScreen(
                     QueueItem(
                         track = item,
                         isCurrent = index == state.currentIndex,
-                        onClick = { viewModel.playTrackAt(index) },
+                        onClick = { onPlayTrackAt(index) },
                     )
                 }
             }
@@ -258,7 +295,7 @@ fun PlayerScreen(
                 TextButton(
                     onClick = {
                         showStopConfirmation = false
-                        viewModel.stop()
+                        onStop()
                     },
                 ) {
                     Text(stringResource(R.string.player_stop))
@@ -486,4 +523,112 @@ private fun QueueItem(
 private fun formatDuration(durationMs: Long): String {
     val seconds = durationMs.coerceAtLeast(0L) / 1_000L
     return "%d:%02d".format(seconds / 60L, seconds % 60L)
+}
+
+@Preview(name = "Reproductor - sin canción", showBackground = true)
+@Composable
+private fun PlayerEmptyPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        PlayerScreenContent(
+            state = PlaybackState(),
+            onBack = {},
+            onSeekTo = {},
+            onPrevious = {},
+            onBackTen = {},
+            onToggle = {},
+            onForwardTen = {},
+            onNext = {},
+            onSetVolume = {},
+            onCycleRepeatMode = {},
+            onToggleShuffle = {},
+            onPlayTrackAt = {},
+            onStop = {},
+        )
+    }
+}
+
+@Preview(name = "Reproductor - cola de ejemplo", showBackground = true)
+@Composable
+private fun PlayerQueuePreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        PlayerScreenContent(
+            state = PlaybackState(
+                queue = listOf(
+                    PlaybackTrack("preview://song-1", "Canción de ejemplo", "Artista de ejemplo", null),
+                    PlaybackTrack("preview://song-2", "Otra canción", "Otro artista", null),
+                ),
+                currentIndex = 0,
+                positionMs = 62_000L,
+                durationMs = 180_000L,
+                status = PlaybackStatus.READY,
+                isPlaying = true,
+                canSkipNext = true,
+            ),
+            onBack = {},
+            onSeekTo = {},
+            onPrevious = {},
+            onBackTen = {},
+            onToggle = {},
+            onForwardTen = {},
+            onNext = {},
+            onSetVolume = {},
+            onCycleRepeatMode = {},
+            onToggleShuffle = {},
+            onPlayTrackAt = {},
+            onStop = {},
+        )
+    }
+}
+
+@Preview(name = "Reproductor - pausa y shuffle oscuro", showBackground = true)
+@Composable
+private fun PlayerPausedDarkPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        PlayerScreenContent(
+            state = PlaybackState(
+                queue = listOf(
+                    PlaybackTrack("preview://song", "Canción de ejemplo", "Artista de ejemplo", null),
+                ),
+                currentIndex = 0,
+                durationMs = 180_000L,
+                status = PlaybackStatus.READY,
+                repeatMode = PlaybackRepeatMode.ALL,
+                shuffleEnabled = true,
+            ),
+            onBack = {},
+            onSeekTo = {},
+            onPrevious = {},
+            onBackTen = {},
+            onToggle = {},
+            onForwardTen = {},
+            onNext = {},
+            onSetVolume = {},
+            onCycleRepeatMode = {},
+            onToggleShuffle = {},
+            onPlayTrackAt = {},
+            onStop = {},
+        )
+    }
+}
+
+@Preview(name = "Reproductor - error oscuro", showBackground = true)
+@Composable
+private fun PlayerErrorPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        PlayerScreenContent(
+            state = PlaybackState(status = PlaybackStatus.ERROR),
+            onBack = {},
+            onSeekTo = {},
+            onPrevious = {},
+            onBackTen = {},
+            onToggle = {},
+            onForwardTen = {},
+            onNext = {},
+            onSetVolume = {},
+            onCycleRepeatMode = {},
+            onToggleShuffle = {},
+            onPlayTrackAt = {},
+            onStop = {},
+        )
+    }
 }

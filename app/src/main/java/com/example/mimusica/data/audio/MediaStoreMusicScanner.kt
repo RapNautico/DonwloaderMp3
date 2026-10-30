@@ -200,8 +200,12 @@ class MediaStoreMusicScanner(
                     collection,
                     projection,
                     "LOWER(${MediaStore.MediaColumns.RELATIVE_PATH}) = ? OR " +
+                        "LOWER(${MediaStore.MediaColumns.RELATIVE_PATH}) LIKE ? OR " +
+                        "LOWER(${MediaStore.MediaColumns.RELATIVE_PATH}) = ? OR " +
                         "LOWER(${MediaStore.MediaColumns.RELATIVE_PATH}) LIKE ?",
                     arrayOf(
+                        MUSIC_DIRECTORY.lowercase(Locale.ROOT),
+                        "${MUSIC_DIRECTORY.lowercase(Locale.ROOT)}/%",
                         AUDIO_DIRECTORY.lowercase(Locale.ROOT),
                         "${AUDIO_DIRECTORY.lowercase(Locale.ROOT)}/%",
                     ),
@@ -243,14 +247,16 @@ class MediaStoreMusicScanner(
                 MediaStore.MediaColumns.SIZE,
                 MediaStore.MediaColumns.DATE_MODIFIED,
             )
+            val musicRoot = File(Environment.getExternalStorageDirectory(), MUSIC_DIRECTORY)
+                .canonicalPath.lowercase(Locale.ROOT)
             val audioRoot = File(Environment.getExternalStorageDirectory(), AUDIO_DIRECTORY)
-                .canonicalPath
-                .lowercase(Locale.ROOT)
+                .canonicalPath.lowercase(Locale.ROOT)
             (contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                "LOWER($dataColumnName) LIKE ?",
-                arrayOf("$audioRoot/%"),
+                "(LOWER($dataColumnName) = ? OR LOWER($dataColumnName) LIKE ?) OR " +
+                    "(LOWER($dataColumnName) = ? OR LOWER($dataColumnName) LIKE ?)",
+                arrayOf(musicRoot, "$musicRoot/%", audioRoot, "$audioRoot/%"),
                 null,
             ) ?: throw IOException("MediaStore query returned no cursor")).use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -298,6 +304,7 @@ class MediaStoreMusicScanner(
     )
 
     private companion object {
+        const val MUSIC_DIRECTORY = "Music"
         const val AUDIO_DIRECTORY = "Audio"
         const val CONTENT_CHANGE_DEBOUNCE_MS = 700L
     }

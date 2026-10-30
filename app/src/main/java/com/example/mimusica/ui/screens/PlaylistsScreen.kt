@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mimusica.MiMusicaApplication
@@ -59,8 +60,11 @@ import com.example.mimusica.components.PlaybackArtwork
 import com.example.mimusica.domain.model.PlaylistDetails
 import com.example.mimusica.domain.model.PlaylistSummary
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.presentation.playlist.PlaylistDetailUiState
 import com.example.mimusica.presentation.playlist.PlaylistDetailViewModel
+import com.example.mimusica.presentation.playlist.PlaylistsUiState
 import com.example.mimusica.presentation.playlist.PlaylistsViewModel
+import com.example.mimusica.theme.MiMusicaTheme
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +74,27 @@ fun PlaylistsScreen(
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as MiMusicaApplication
     val viewModel: PlaylistsViewModel = viewModel(factory = app.container.viewModelFactory)
     val state by viewModel.state.collectAsState()
+
+    PlaylistsScreenContent(
+        state = state,
+        onOpenPlaylist = onOpenPlaylist,
+        onCreate = viewModel::createPlaylist,
+        onRename = viewModel::renamePlaylist,
+        onDelete = viewModel::deletePlaylist,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun PlaylistsScreenContent(
+    state: PlaylistsUiState,
+    onOpenPlaylist: (Long) -> Unit,
+    onCreate: (String) -> Unit,
+    onRename: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
+    onRetry: () -> Unit,
+) {
     var showCreate by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PlaylistSummary?>(null) }
     var deleting by remember { mutableStateOf<PlaylistSummary?>(null) }
@@ -109,7 +134,7 @@ fun PlaylistsScreen(
                         title = stringResource(R.string.playlist_load_error_title),
                         description = state.loadError.orEmpty(),
                     )
-                    TextButton(onClick = viewModel::retry) {
+                    TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.action_retry))
                     }
                 }
@@ -148,7 +173,7 @@ fun PlaylistsScreen(
             confirmLabel = stringResource(R.string.action_create),
             onDismiss = { showCreate = false },
             onConfirm = { name ->
-                viewModel.createPlaylist(name)
+                onCreate(name)
                 showCreate = false
             },
         )
@@ -160,7 +185,7 @@ fun PlaylistsScreen(
             initialName = playlist.name,
             onDismiss = { editing = null },
             onConfirm = { name ->
-                viewModel.renamePlaylist(playlist.id, name)
+                onRename(playlist.id, name)
                 editing = null
             },
         )
@@ -173,7 +198,7 @@ fun PlaylistsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deletePlaylist(playlist.id)
+                        onDelete(playlist.id)
                         deleting = null
                     },
                 ) { Text(stringResource(R.string.action_delete)) }
@@ -281,6 +306,29 @@ fun PlaylistDetailScreen(
         factory = app.container.playlistDetailViewModelFactory(playlistId),
     )
     val state by viewModel.state.collectAsState()
+
+    PlaylistDetailScreenContent(
+        state = state,
+        onBack = onBack,
+        onPlaySongs = onPlaySongs,
+        onRetry = viewModel::retry,
+        onAddSong = viewModel::addSong,
+        onMoveSong = viewModel::moveSong,
+        onRemoveSong = viewModel::removeSong,
+    )
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun PlaylistDetailScreenContent(
+    state: PlaylistDetailUiState,
+    onBack: () -> Unit,
+    onPlaySongs: (List<Song>, String) -> Unit,
+    onRetry: () -> Unit,
+    onAddSong: (String) -> Unit,
+    onMoveSong: (Int, Int) -> Unit,
+    onRemoveSong: (String) -> Unit,
+) {
     var showSongPicker by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -304,11 +352,16 @@ fun PlaylistDetailScreen(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                EmptyState(
-                    icon = Icons.Filled.MusicNote,
-                    title = stringResource(R.string.playlist_load_error_title),
-                    description = state.error.orEmpty(),
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    EmptyState(
+                        icon = Icons.Filled.MusicNote,
+                        title = stringResource(R.string.playlist_load_error_title),
+                        description = state.error.orEmpty(),
+                    )
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
             }
             state.playlist == null -> Box(
                 Modifier.fillMaxSize().padding(padding),
@@ -327,8 +380,8 @@ fun PlaylistDetailScreen(
                 operationError = state.operationError,
                 onAddSongs = { showSongPicker = true },
                 onPlay = { song -> onPlaySongs(state.playlist!!.songs, song.uri) },
-                onMove = viewModel::moveSong,
-                onRemove = viewModel::removeSong,
+                onMove = onMoveSong,
+                onRemove = onRemoveSong,
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
         }
@@ -338,7 +391,7 @@ fun PlaylistDetailScreen(
         AddSongsDialog(
             librarySongs = state.librarySongs,
             existingUris = state.playlist?.songs?.mapTo(mutableSetOf()) { it.uri }.orEmpty(),
-            onAdd = viewModel::addSong,
+            onAdd = onAddSong,
             onDismiss = { showSongPicker = false },
         )
     }
@@ -503,6 +556,7 @@ private fun AddSongsDialog(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
+
                             TextButton(
                                 onClick = { onAdd(song.uri) },
                                 enabled = !alreadyAdded,
@@ -522,4 +576,116 @@ private fun AddSongsDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) }
         },
     )
+}
+
+@Preview(name = "Playlists - vacía", showBackground = true)
+@Composable
+private fun PlaylistsEmptyPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        PlaylistsScreenContent(
+            state = PlaylistsUiState(isLoading = false),
+            onOpenPlaylist = {},
+            onCreate = {},
+            onRename = { _, _ -> },
+            onDelete = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Playlists - contenido oscuro", showBackground = true)
+@Composable
+private fun PlaylistsContentPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        PlaylistsScreenContent(
+            state = PlaylistsUiState(
+                playlists = listOf(
+                    PlaylistSummary(1L, "Playlist de ejemplo", 4, null),
+                    PlaylistSummary(2L, "Otra playlist", 0, null),
+                ),
+                isLoading = false,
+            ),
+            onOpenPlaylist = {},
+            onCreate = {},
+            onRename = { _, _ -> },
+            onDelete = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Playlists - error", showBackground = true)
+@Composable
+private fun PlaylistsErrorPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        PlaylistsScreenContent(
+            state = PlaylistsUiState(
+                isLoading = false,
+                loadError = "Error de ejemplo",
+            ),
+            onOpenPlaylist = {},
+            onCreate = {},
+            onRename = { _, _ -> },
+            onDelete = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de playlist - contenido", showBackground = true)
+@Composable
+private fun PlaylistDetailContentPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        PlaylistDetailScreenContent(
+            state = PlaylistDetailUiState(
+                playlist = PlaylistDetails(
+                    playlist = PlaylistSummary(1L, "Playlist de ejemplo", 2, null),
+                    songs = listOf(
+                        Song(
+                            uri = "preview://playlist-song-1",
+                            title = "Canción de ejemplo",
+                            artist = "Artista de ejemplo",
+                            album = "Álbum de ejemplo",
+                            durationMs = 180_000L,
+                            dateAddedMs = 1L,
+                        ),
+                        Song(
+                            uri = "preview://playlist-song-2",
+                            title = "Otra canción",
+                            artist = null,
+                            album = null,
+                            durationMs = 210_000L,
+                            dateAddedMs = 1L,
+                        ),
+                    ),
+                ),
+                isLoading = false,
+            ),
+            onBack = {},
+            onPlaySongs = { _, _ -> },
+            onRetry = {},
+            onAddSong = {},
+            onMoveSong = { _, _ -> },
+            onRemoveSong = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de playlist - error oscuro", showBackground = true)
+@Composable
+private fun PlaylistDetailErrorPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        PlaylistDetailScreenContent(
+            state = PlaylistDetailUiState(
+                isLoading = false,
+                error = "Error de ejemplo",
+            ),
+            onBack = {},
+            onPlaySongs = { _, _ -> },
+            onRetry = {},
+            onAddSong = {},
+            onMoveSong = { _, _ -> },
+            onRemoveSong = {},
+        )
+    }
 }

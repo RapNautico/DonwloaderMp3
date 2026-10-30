@@ -10,7 +10,10 @@ internal object MediaStoreAudioPathPolicy {
 
     fun includes(relativePath: String?): Boolean {
         val segments = pathSegments(relativePath) ?: return false
-        return segments.firstOrNull()?.equals("Audio", ignoreCase = true) == true &&
+        val isMusicRoot = segments.firstOrNull()?.let { root ->
+            root.equals("Music", ignoreCase = true) || root.equals("Audio", ignoreCase = true)
+        } == true
+        return isMusicRoot &&
             !isExcludedWhatsAppLocation(segments)
     }
 
