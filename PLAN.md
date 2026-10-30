@@ -280,9 +280,9 @@ Al retomar: re-verificar la documentación oficial vigente de cada proveedor, re
 
 ---
 
-# FASE 8 — BIBLIOTECA COMPLETA (fase activa)
+# FASE 8 — BIBLIOTECA COMPLETA
 
-Estado: 🔵 En curso — 8.0 documentado y AUTORIZADO (2026-10-28); implementación por entregas desde 8.1.
+Estado: ✅ COMPLETADA (cierre anterior a FASE 9; el roadmap y las fases posteriores ya registran su finalización).
 
 ## Decisiones autorizadas (8.0, 2026-10-28)
 
@@ -307,7 +307,7 @@ Estado: 🔵 En curso — 8.0 documentado y AUTORIZADO (2026-10-28); implementac
 - [x] **8.7 — Inválidos**: acción «Comprobar archivo» por canción en el menú de biblioteca; abre el descriptor SAF y comprueba pista/formato con `MediaExtractor` en `Dispatchers.IO`; estados visibles disponible/ausente/sin acceso/no válido, sin auto-eliminar ni borrar archivos. Estado por URI solo en presentación; Room v3, permisos y dependencias sin cambios. 6 pruebas JVM nuevas; validación final: 109/109 tests, `assembleDebug` OK, `git diff --check` limpio.
 - [x] **8.8 — UI Library completa**: SearchBar M3 conectada a la búsqueda reactiva 8.3 (debounce/cancelación conservados); Tabs Canciones/Artistas/Álbumes sobre rutas existentes y resúmenes SQL reales; FAB reutiliza selector SAF/importación; filas de canción con metadatos disponibles, portada/alternativa accesible, objetivos de 48 dp y estado de archivo 8.7; esqueleto inicial, estados vacía/sin coincidencias/error con reintento, sin confundir carga con vacío. Validación: 113 tests JVM OK, `assembleDebug` OK, `git diff --check` limpio; no hay `androidTest` ni `adb` disponible para validar UI en dispositivo.
 - [x] **8.9 — Tests**: conserva cobertura existente de Room/DAO y repositorio (listar, buscar, todos los órdenes, recientes, grupos, duplicados y eliminación lógica), modelos de biblioteca/estado e importación; amplía pruebas de consulta en curso cancelada, consulta de espacios, biblioteca real vacía, errores/cancelación al analizar archivos y retención del registro tras MISSING/INACCESSIBLE/INVALID. Suite JVM: 119 tests OK; `assembleDebug` y `git diff --check` OK. Sin pruebas de ViewModel/UI: `kotlinx-coroutines-test` no está aprobada y no existe infraestructura `androidTest`/Compose UI.
-- [ ] **8.10 — Validación final**: assembleDebug + testDebugUnitTest + diff --check + revisión de schema v3 + informe.
+- [x] **8.10 — Validación final**: suite de 119 tests JVM, `assembleDebug` y `git diff --check` exitosos (8.9); schema v3 exportado y cubierto por las pruebas de Room. FASE 8 cerrada antes de iniciar FASE 9.
 
 Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 dependencias nuevas (salvo aprobación explícita en 8.9); sin datos inventados; contratos de 9/10 preparados sin implementar; migración v3 probada en JVM; pruebas de dispositivo siguen pendientes sin emulador.
 
@@ -415,11 +415,27 @@ Estado: implementación y validación automatizada completadas; validación espe
 - Un snapshot Room estable y de solo lectura contenía 15 canciones: 1 URI resolvió a `Music/Zueira/` y 14 a `snaptube/download/SnapTube Audio/`. Cero coincidían con `Audio/`, las cuatro ubicaciones WhatsApp solicitadas o las dos rutas observadas de WhatsApp Business. No se eliminaron registros ni archivos.
 - El escáner anterior consultaba `Music/`, por lo que las rutas WhatsApp observadas fuera de `Music/` no se incorporaron automáticamente mediante ese escaneo. La inspección actual no encontró registros coincidentes; cualquier importación manual posterior podrá seguir usándose por SAF.
 
+### Mejora posterior independiente — vistas previas de Jetpack Compose (2026-10-29)
+
+Estado: implementación documental y técnica integrada; inspección visual en Android Studio pendiente. No reabre FASE 11 ni cambia funcionalidades de la aplicación.
+
+- Se añadieron 21 anotaciones `@Preview` a las pantallas y componentes visuales existentes, incluidas variantes claras y oscuras.
+- Biblioteca puede inspeccionarse de forma aislada en estados de carga, vacío, canciones e importación. Su contenido visual se separa de la integración de producción con `ViewModel` y SAF.
+- Los datos sintéticos son exclusivos de previews y se identifican como ejemplos; no se usan como datos reales ni habilitan funcionalidades placeholder.
+- `DESIGN_SYSTEM.md` documenta las convenciones para mantener las previews.
+- Validación: 69 pruebas JVM, `assembleDebug` y `git diff --check` exitosos con JDK 25.0.4, Gradle Wrapper 9.6.0 y AGP 9.4.0. Las 21 anotaciones compilaron; su renderizado y revisión visual individual en Android Studio siguen pendientes.
+
 ---
 
 # FASE 12 — INTEGRACIÓN FINAL
 
-Estado: ⬜ Pendiente
+Estado: ⬜ Siguiente fase planificada; pendiente y no iniciada.
+
+## Objetivo
+
+Validar e integrar los flujos funcionales que conectan las fases 5, 8, 9, 10 y 11, sin duplicar sus implementaciones ni cambiar sus decisiones ya cerradas.
+
+## Alcance previsto
 
 Flujos extremo a extremo que deben funcionar:
 
@@ -430,7 +446,23 @@ Settings → Preferencias → Aplicación
 ```
 
 - Verificación de que los cambios de configuración afectan REALMENTE a la app (nada decorativo).
-- Criterio de compatibilidad con descargas futuras: una canción descargada debe entrar a la biblioteca por el mismo mecanismo que una importada (misma entidad `Song`, mismo `SongRepository.addSongs`); los contratos 7.0 ya apuntan ahí (`DownloadRequest` → archivo local → registro). Durante FASE 8–11 debe perderse ninguna capacidad ni acoplarse nada que impida conectar el motor de descargas después.
+- Criterio de compatibilidad con descargas futuras: una canción descargada debe entrar a la biblioteca por el mismo mecanismo que una importada (misma entidad `Song`, mismo `SongRepository.addSongs`); los contratos 7.0 ya apuntan ahí (`DownloadRequest` → archivo local → registro). Verificar que los cambios de FASE 8–11 no hayan eliminado capacidades ni acoplado la biblioteca de forma que impida conectar el motor de descargas en el futuro.
+
+## Dependencias, riesgos y límites conocidos
+
+- Depende de la importación SAF y la biblioteca existente; de Media3, MediaSession y el estado de reproducción; de las playlists; y de las preferencias de FASE 11.
+- FASE 7 permanece pausada. La integración solo debe conservar la compatibilidad con sus contratos existentes: no implica implementar descargas ni elegir su motor.
+- La validación física del escaneo `Audio/` sigue abierta y debe hacerse con archivos reales dentro de esa carpeta en el dispositivo. La revisión visual de previews también sigue pendiente en Android Studio; son validaciones complementarias, no funcionalidades nuevas.
+- Riesgos a verificar: URI SAF revocadas o inaccesibles, deduplicación SAF/MediaStore y persistencia de relaciones con playlists, restauración de la sesión de playback y aplicación efectiva de preferencias.
+- No se planifican migraciones Room ni dependencias nuevas para esta fase. Si la implementación demostrara que hacen falta, se documentarán y aprobarán antes de incorporarlas.
+
+## Criterios de aceptación sugeridos (pendientes de aprobación al iniciar la fase)
+
+- Ejecutar los flujos de importación → biblioteca → reproducción → MiniPlayer/Player → cola → playlist, y biblioteca → playlist → reproducción, verificando los estados y resultados reales.
+- Confirmar que los cambios de ajustes persisten y se reflejan en las pantallas y los servicios correspondientes tras reiniciar la app.
+- Confirmar que archivos o URIs inaccesibles no eliminan registros, archivos físicos ni membresías de playlists automáticamente.
+- Probar en dispositivo los permisos, el escaneo automático con contenido real en `Audio/`, la importación SAF independiente y la deduplicación entre ambas fuentes.
+- Ejecutar la suite JVM, `assembleDebug` y `git diff --check`; documentar por separado cualquier limitación de UI o dispositivo.
 
 ---
 
@@ -479,11 +511,11 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 11 — AJUSTES, completada (validación física confirmada por el usuario). FASE 10 — PLAYLISTS completada; FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
+FASE 11 — AJUSTES, completada (validación física confirmada por el usuario). Siguiente fase planificada: FASE 12 — INTEGRACIÓN FINAL (pendiente, no iniciada). FASE 10 — PLAYLISTS y FASE 9 — REPRODUCTOR completadas según confirmación del usuario; FASE 7 continúa pausada.
 
 Último cambio:
 
-Ajuste posterior a FASE 11 — escaneo MediaStore de Audio/ y exclusión por ruta de WhatsApp; pendiente validación física específica.
+Mejora de Presentation posterior a FASE 11 — previews Compose; inspección visual pendiente en Android Studio. El ajuste de escaneo `Audio/` continúa pendiente de validación física específica.
 
 Roadmap replanificado (2026-10-28):
 
@@ -492,7 +524,7 @@ Roadmap replanificado (2026-10-28):
 - FASE 9 — REPRODUCTOR: ✅ completada; validación física confirmada por el usuario.
 - FASE 10 — PLAYLISTS: ✅ completada.
 - FASE 11 — AJUSTES: ✅ COMPLETADA; suite de 152 pruebas, compilación y validación física Android 14 confirmadas.
-- FASE 12 — INTEGRACIÓN FINAL (los flujos importar→reproducir→playlist y compatibilidad con descargas futuras).
+- FASE 12 — INTEGRACIÓN FINAL: siguiente fase planificada; pendiente, sin implementación iniciada.
 - FASE 13 TESTING / 14 OPTIMIZACIÓN / 15 RELEASE: intactas tras la 12.
 
 ---

@@ -166,6 +166,13 @@ Componentes:
 - UI State.
 - `PlayerViewModel` transmite el estado de `PlayerController` a `PlayerScreen` y `MiniPlayer`.
 
+### Previews de Compose
+
+- Las funciones `@Preview` deben renderizar superficies de presentación sin construir `AppContainer`, `ViewModel`, repositorios ni servicios Android.
+- Cuando una pantalla dependa de estado real, separar el contenido visual en un composable que reciba estado y callbacks; la pantalla de producción conserva la integración con ViewModel, navegación y SAF.
+- Los ejemplos sintéticos pertenecen exclusivamente a previews, se identifican como tales y nunca sustituyen la fuente de datos de producción.
+- Las previews no habilitan funcionalidades ni cambian los límites Presentation → Domain → Data.
+
 La Presentation NO debe:
 
 - acceder directamente a Room;
@@ -721,15 +728,14 @@ Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de c
 - `song_source_identities` (Room v5, migración v4→v5) guarda alias de identidad por volumen+ruta relativa y tamaño/fecha de modificación. `songs.uri` y las claves de playlists permanecen intactas; una identidad ambigua no se fusiona.
 - Las canciones nuevas o modificadas se preparan mediante el importador SAF existente. No se eliminan registros ni archivos automáticamente; SAF sigue disponible para proveedores externos.
 - El ajuste posterior a FASE 11 amplía la identidad de origen para la carpeta raíz `Audio/` y enlaza URI SAF existentes antes de importar su equivalente MediaStore; no modifica el esquema ni las URIs almacenadas. La importación SAF manual no usa el filtro de carpetas del escáner. En Android 14, `/storage/emulated/0/Audio` no existe y MediaStore no devolvió filas `Audio/`; sí observó rutas de WhatsApp Business bajo `Android/media/com.whatsapp.w4b/`, fuera de la allowlist `Audio/` y documentadas en PLAN.md. La validación física del escáner actualizado sigue pendiente.
+- El ajuste posterior se validó con 161 pruebas, `assembleDebug` y `git diff --check`; la detección física real permanece pendiente hasta probar con archivos presentes en la carpeta `Audio/`.
 
 ## Decisiones pendientes (bloqueantes de fases concretas)
 
 - WorkManager/UIDT: motores del pausado sistema de descargas (Fase 7).
 - OkHttp/HttpURLConnection: del motor de descarga pausado (Fase 7).
 - La preferencia de almacenamiento simple de FASE 11 se resolvió con `SharedPreferences`; no se incorporó DataStore.
-- Comportamiento de eliminación de canción (quitar registro vs borrado físico confirmado): se consolidará en FASE 8 §8.3.
 - Almacenamiento final de descargas (app-privado vs MediaStore): Fase 7 al retomarla; FASE 8 no depende de esto.
-- minSdk/dynamic color y demás detalles de apariencia: al definir Fase 11 sobre lo ya implementado.
 
 ---
 
