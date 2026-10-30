@@ -3,6 +3,8 @@
 import com.example.mimusica.domain.model.AlbumSummary
 import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSort
+import com.example.mimusica.domain.model.toComparator
 import com.example.mimusica.domain.repository.SongRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -51,6 +53,10 @@ class ImportAudioUseCaseTest {
         }
 
         override fun observeLibrary(): Flow<List<Song>> = flowOf(stored.toList())
+
+        override fun observeLibrary(sortedBy: SongSort): Flow<List<Song>> = flowOf(
+            stored.sortedWith(sortedBy.toComparator()),
+        )
 
         override fun observeRecentSongs(limit: Int): Flow<List<Song>> =
             flowOf(stored.sortedByDescending { it.dateAddedMs }.take(limit))
@@ -192,5 +198,23 @@ class ImportAudioUseCaseTest {
         ImportAudioUseCase(importer, FakeSongRepository())(listOf("x1", "x2"))
 
         assertEquals(listOf("x1", "x2"), importer.requested)
+    }
+
+    @Test
+    fun `importacion manual SAF desde Audio y WhatsApp no se filtra por alcance MediaStore`() = runBlocking {
+        val uris = listOf(
+            "content://com.android.externalstorage.documents/document/primary%3AAudio%2Fsong.mp3",
+            "content://com.android.externalstorage.documents/document/primary%3AWhatsApp%2FMedia%2FWhatsApp%20Audio%2Fvoice.mp3",
+        )
+        val importer = FakeImporter(
+            uris.map { uri -> PreparedAudio(uri, uri.substringAfterLast('/'), song = validSong(uri)) },
+        )
+        val repository = FakeSongRepository()
+
+        val report = ImportAudioUseCase(importer, repository)(uris)
+
+        assertEquals(uris, importer.requested)
+        assertEquals(2, report.songsAdded)
+        assertEquals(uris, repository.stored.map { it.uri })
     }
 }

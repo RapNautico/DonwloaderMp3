@@ -1,6 +1,7 @@
 package com.example.mimusica.data.audio
 
 import android.content.Context
+import android.content.res.AssetFileDescriptor
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -63,10 +64,23 @@ class AudioMetadataReader(private val context: Context) {
     }.getOrNull()
 
     /** Mime/sampleRate/canales de la PRIMERA pista de audio; null si no hay. */
-    fun streamFormat(uri: Uri): AudioStreamFormat? {
+    fun streamFormat(uri: Uri): AudioStreamFormat? =
+        readStreamFormat { extractor -> extractor.setDataSource(context, uri, null) }
+
+    /** Analiza el descriptor ya abierto por SAF; facilita separar acceso y formato inválido. */
+    fun streamFormat(descriptor: AssetFileDescriptor): AudioStreamFormat? =
+        readStreamFormat { extractor ->
+            extractor.setDataSource(
+                descriptor.fileDescriptor,
+                descriptor.startOffset,
+                descriptor.length,
+            )
+        }
+
+    private fun readStreamFormat(setDataSource: (MediaExtractor) -> Unit): AudioStreamFormat? {
         val extractor = MediaExtractor()
         try {
-            extractor.setDataSource(context, uri, null)
+            setDataSource(extractor)
             var mime: String? = null
             var sampleRateHz: Int? = null
             var channels: Int? = null

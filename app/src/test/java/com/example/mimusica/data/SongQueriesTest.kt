@@ -3,6 +3,8 @@ package com.example.mimusica.data
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSort
+import com.example.mimusica.domain.model.toComparator
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -231,6 +233,32 @@ class SongQueriesTest {
         val despues = repo.observeArtistSummaries().first().first { it.name == "Queen" }.songCount
         assertEquals(antes, despues)
         assertEquals(7, repo.searchSongs("").size) // nada se duplicó
+    }
+
+    // ---------- Orden (FASE 8.3) ----------
+
+    @Test
+    fun ordenes_sql_coinciden_con_el_comparador_puro() = runBlocking {
+        // PARIDAD: la orden SQL (observeLibrary(sort)) y el orden en memoria
+        // del comparador dominio (toComparator, usado en los resultados de
+        // búsqueda) deben producir LA MISMA secuencia con los mismos datos.
+        for (sort in SongSort.entries) {
+            val viaSql = repo.observeLibrary(sort).first().map { it.uri }
+            val viaComparador = repo.searchSongs("").sortedWith(sort.toComparator()).map { it.uri }
+            assertEquals("orden $sort", viaComparador, viaSql)
+        }
+    }
+
+    @Test
+    fun orden_por_artista_coloca_desconocidos_al_final() = runBlocking {
+        val viaSql = repo.observeLibrary(SongSort.ARTIST_ASC).first().map { it.uri }
+        // Barricada (u6 "zeta..." antes que u5 "Ángel..." — tilde sin plegar);
+        // grupo Queen/queen bajo NOCASE es UNO: por título Another(u3), Hot(u2), Radio(u1);
+        // los NULL (artist null) van al final:
+        assertEquals(
+            listOf("uri-6", "uri-5", "uri-3", "uri-2", "uri-1", "uri-7", "uri-4"),
+            viaSql,
+        )
     }
 
     private data class ArtistaEsperado(val name: String?, val songCount: Int)

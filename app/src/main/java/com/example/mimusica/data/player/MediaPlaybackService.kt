@@ -1,0 +1,173 @@
+package com.example.mimusica.data.player
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ShuffleOrder
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaSessionService
+import com.example.mimusica.data.preferences.SharedPreferencesAppSettingsRepository
+import com.example.mimusica.domain.model.AppSettings
+import com.example.mimusica.domain.model.PlaybackTrack
+import com.example.mimusica.domain.model.shouldRestorePlaybackSession
+import com.example.mimusica.domain.model.shouldResumeSavedPlayback
+import java.io.File
+
+class MediaPlaybackService : MediaSessionService() {
+    private lateinit var player: ExoPlayer
+    private lateinit var mediaSession: MediaSession
+    private lateinit var snapshotStore: PlaybackSnapshotStore
+    private lateinit var appSettings: AppSettings
+    private var preserveStoredSnapshotIfQueueEmpty = false
+    private val persistenceHandler = Handler(Looper.getMainLooper())
+    private val persistPosition = object : Runnable {
+        override fun run() {
+            if (player.isPlaying) {
+                persistSnapshot()
+                persistenceHandler.postDelayed(this, POSITION_SAVE_INTERVAL_MS)
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        snapshotStore = PlaybackSnapshotStore(this)
+        appSettings = SharedPreferencesAppSettingsRepository(this).settings.value
+        player = ExoPlayer.Builder(applicationContext).build().apply {
+            setAudioAttributes(AudioAttributes.DEFAULT, true)
+            setHandleAudioBecomingNoisy(true)
+            addListener(playerListener)
+        }
+        mediaSession = MediaSession.Builder(this, player).build()
+        restoreSnapshot()
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession =
+        mediaSession
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (!player.isPlaying) stopSelf()
+    }
+
+    override fun onDestroy() {
+        persistenceHandler.removeCallbacks(persistPosition)
+        persistSnapshot()
+        mediaSession.release()
+        player.release()
+        super.onDestroy()
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            persistSnapshot()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            persistenceHandler.removeCallbacks(persistPosition)
+            if (isPlaying) {
+                persistenceHandler.postDelayed(persistPosition, POSITION_SAVE_INTERVAL_MS)
+            }
+            persistSnapshot()
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            persistSnapshot()
+        }
+    }
+
+    private fun restoreSnapshot() {
+        val savedSnapshot = snapshotStore.read()
+        val snapshot = savedSnapshot.takeIf {
+            appSettings.shouldRestorePlaybackSession(hasSnapshot = it != null)
+        }
+        if (snapshot == null) {
+            preserveStoredSnapshotIfQueueEmpty = !appSettings.restoreLastSession && savedSnapshot != null
+            player.repeatMode = appSettings.defaultRepeatMode.toMedia3RepeatMode()
+            player.shuffleModeEnabled = appSettings.defaultShuffle
+            return
+        }
+        val items = snapshot.queue.map(::toMediaItem)
+        player.setMediaItems(items, snapshot.currentIndex, snapshot.positionMs)
+        snapshot.shuffleOrder?.let { order ->
+            player.setShuffleOrder(
+                ShuffleOrder.DefaultShuffleOrder(order.toIntArray(), SHUFFLE_RANDOM_SEED),
+            )
+        }
+        player.repeatMode = snapshot.repeatMode.toMedia3RepeatMode()
+        player.shuffleModeEnabled = snapshot.shuffleEnabled
+        player.prepare()
+        player.playWhenReady = appSettings.shouldResumeSavedPlayback(snapshot.playWhenReady)
+    }
+
+    private fun persistSnapshot() {
+        if (!::player.isInitialized || !::snapshotStore.isInitialized) return
+        val queue = (0 until player.mediaItemCount)
+            .map(player::getMediaItemAt)
+            .map(::toPlaybackTrack)
+        if (queue.isEmpty()) {
+            if (!preserveStoredSnapshotIfQueueEmpty) snapshotStore.clear()
+            return
+        }
+        preserveStoredSnapshotIfQueueEmpty = false
+        val index = player.currentMediaItemIndex.takeIf { it in queue.indices } ?: 0
+        snapshotStore.write(
+            PlaybackSnapshot(
+                queue = queue,
+                currentIndex = index,
+                positionMs = player.currentPosition.coerceAtLeast(0L),
+                playWhenReady = player.playWhenReady,
+                repeatMode = player.repeatMode.toPlaybackRepeatMode(),
+                shuffleEnabled = player.shuffleModeEnabled,
+                shuffleOrder = player.readShuffleOrder(),
+            ),
+        )
+    }
+
+    private fun ExoPlayer.readShuffleOrder(): List<Int>? {
+        val order = shuffleOrder
+        val indices = ArrayList<Int>(order.length)
+        var index = order.firstIndex
+        while (index != C.INDEX_UNSET && indices.size < order.length) {
+            indices += index
+            index = order.getNextIndex(index)
+        }
+        return indices.takeIf { it.size == order.length }
+    }
+
+    private fun toMediaItem(track: PlaybackTrack): MediaItem =
+        MediaItem.Builder()
+            .setMediaId(track.uri)
+            .setUri(Uri.parse(track.uri))
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
+                    .setArtworkUri(track.artworkPath?.let { Uri.fromFile(File(it)) })
+                    .build(),
+            )
+            .build()
+
+    private fun toPlaybackTrack(item: MediaItem): PlaybackTrack {
+        val metadata = item.mediaMetadata
+        val artworkUri = metadata.artworkUri
+        return PlaybackTrack(
+            uri = item.localConfiguration?.uri?.toString() ?: item.mediaId,
+            title = metadata.title?.toString().orEmpty(),
+            artist = metadata.artist?.toString(),
+            artworkPath = artworkUri?.takeIf { it.scheme == "file" }?.path,
+        )
+    }
+
+    private companion object {
+        const val POSITION_SAVE_INTERVAL_MS = 1_000L
+        val SHUFFLE_RANDOM_SEED = System.currentTimeMillis()
+    }
+}

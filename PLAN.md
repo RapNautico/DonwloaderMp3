@@ -300,13 +300,13 @@ Estado: 🔵 En curso — 8.0 documentado y AUTORIZADO (2026-10-28); implementac
 - [x] **8.0 — Auditoría y diseño**: auditoría de Song/Room/Repository/UI/navegación completa (2026-10-28): verificado que Song tiene uri/título/artista/álbum/duración/dateAddedMs/mime/tamaño/bitrate/sampleRate/canales/artworkPath; faltaban genre (decidido incluir) y lastPlayedMs (posponer a Reproductor); Room v2 con índices title/artist; Repository sin búsquedas por álbum/género, recientes ni agrupados; UI solo esqueleto (sin búsqueda/orden/filtros/detalle/gestión); navegación plana de 5 destinos sin rutas anidadas.
 - [x] **8.1 — Modelo + Room v3**: `genre` nullable en Song/SongEntity (D8.1); migración v2→v3 suspend prepare/step (ADD genre TEXT + índices album/dateAddedMs); extracción real vía METADATA_KEY_GENRE (blank → null, `normalizeOptionalText`); mappers completos (fix latente: sampleRateHz/channels/artworkPath no se persistían); schema v3 exportado; 45/45 tests OK (8 nuevos).
 - [x] **8.2 — Consultas Room + Repository**: búsqueda por título/artista/álbum (parcial, ASCII case-insensitive, comodines literal con ESCAPE, trim, vacío=biblioteca completa); recientes (`dateAddedMs DESC` + desempate uri, LIMIT); por artista/álbum (null = bucket desconocido); `observeArtistSummaries`/`observeAlbumSummaries` (GROUP BY en SQL, sin N+1); `ArtistSummary`/`AlbumSummary` en Domain; orden secundario estable por uri. 8.2 = 69/69 tests OK.
-- [ ] **8.3 — Búsqueda + orden**: reactiva (Flow→StateFlow, debounce); toma en cuenta vacía/espacios/sin resultados; ordens título A-Z/Z-A, artista, álbum, recientes/antiguas, duración; orden en estado de UI (SIN DataStore: persistencia de preferencias espera Fase 11 con aprobación).
-- [ ] **8.4 — Artistas + álbumes**: rutas anidadas sin tocar la bottom bar; buckets "Artista desconocido"/"Álbum desconocido" para nulls; reutilización de componentes.
-- [ ] **8.5 — Detalle de canción**: bottom sheet M3 con datos REALES; null → "Desconocido"; sin inventar bitrate/calidad/codec.
-- [ ] **8.6 — Gestión**: menú contextual por canción: reproducir (callback preparado para 9), añadir a playlist (para 10), información, eliminar de biblioteca (solo registro, con ConfirmDialog).
-- [ ] **8.7 — Inválidos**: URI inaccesible/borrado/corrupto identificados bajo demanda con estado visible; sin crash y sin auto-eliminación.
-- [ ] **8.8 — UI Library completa**: SearchBar, Tabs (Canciones/Artistas/Álbumes), FAB importar, SongListItem spec DESIGN_SYSTEM §5, ErrorState + esqueleto (no spinner global), badges 48dp/a11y.
-- [ ] **8.9 — Tests**: repository/DAO (listar/buscar/ordenar/recientes/artistas/álbumes/eliminación lógica), lógica pura (nulos/inválidos/duplicados/vacía), ViewModel si coroutines-test es aprobada.
+- [x] **8.3 — Búsqueda + orden**: reactiva (Flow→StateFlow, debounce 500 ms — decisión usuario 2026-10-29, sustituye los 300 ms del wireframe); cancelación de resultados obsoletos (flatMapLatest); toma en cuenta vacía/espacios/sin resultados; banner de ERROR de búsqueda (errorContainer, conserva la lista previa, se limpia con el siguiente éxito); ordens título A-Z/Z-A, artista, álbum, recientes/antiguas, duración; orden en estado de UI (SIN DataStore: persistencia de preferencias espera Fase 11 con aprobación). Lógica en `LibraryListModel` testeable (7 pruebas de debounce/resultados/errores en tiempo real).
+- [x] **8.4 — Artistas + álbumes**: rutas ANIDADAS dentro del grafo `library` (bottom bar intacta y sigue resaltada por hierarchy; el listado pasa a `library/songs` y navegar a `library` abre el start del grafo); entradas en la top bar de Biblioteca (las Tabs definitivas llegan en 8.8); Artistas/Álbumes REACTIVOS con los resúmenes SQL de 8.2 (`observeArtistSummaries`/`observeAlbumSummaries`, GROUP BY, sin N+1) mostrando nombre + nº de canciones REALES (plurales); detalle de grupo navegable con las canciones (orden SQL definido en 8.2: getByArtist/getByAlbum, carga única al abrir); bucket desconocido (name null del DOMAIN) navegable de primera clase → etiqueta "Artista/Álbum desconocido" SOLO en presentación; nombres codeados como URI en la ruta (espacios, "/", "&" llegan intactos); componente SongRow/SongList extraídos a `components/SongListItems.kt` (reutilización); lógica en `GroupSummariesModel`/`GroupDetailModel` testeables (8 pruebas: reactividad, bucket null, nombres especiales, errores sin crashear, estado vacío). Cero dependencias nuevas, cero cambios de esquema.
+- [x] **8.5 — Detalle de canción**: bottom sheet M3 (`ModalBottomSheet`) como DESTINO `library/song?uri={uri}` en el grafo `library`; abre desde biblioteca y detalles de artista/álbum (fila clicable opcional en `SongRow`, reutilización); datos REALES de `Song` (título, artista, álbum, género, duración, formato/MIME real, tamaño, bitrate medido, muestreo, canales, fecha añadido); `null` del Domain → "Desconocido" SOLO en la UI (sin inventar bitrate/calidad/codec); estados Loading/NotFound/Error sin crash (archivo borrado de la biblioteca → NotFound; detección de archivo inválido es la 8.7); contrato existente `getSong(uri)` (8.2), SIN esquema Room nuevo ni dependencias; lógica en `SongDetailModel` testeable (8 pruebas: carga intacta con nulls, NotFound, uri nula, error, helpers de formato con punto decimal ROOT).
+- [x] **8.6 — Gestión**: menú contextual "⋮" en cada fila de la BIBLIOTECA (`SongMenuButton`, FASE 8.6 activo solo ahí según plan 8.8): Reproducir (callback POR REFUERZO para 9, ítem inoperante), Añadir a playlist (callback POR REFUERZO para 10, ítem inoperante), Información (abre el detalle 8.5) y Eliminar de biblioteca — `AlertDialog` OBLIGATORIO antes de eliminar ("El archivo no se borra del dispositivo"); eliminación SOLO del registro Room vía contrato existente `deleteSong(uri)` (D8.3), UI sincronizada por los Flows reactivos existentes (biblioteca, búsqueda, artistas/álbumes re-emiten solos); una eliminación a la vez (busy), error → banner errorContainer sin borrar la lista (limpio con próximo éxito); lógica en `LibraryManagerModel` (5 pruebas JVM: URI real registrada, error sin crash, error limpiado por éxito, busy observable, segunda concurrente ignorada). Cero dependencias nuevas, cero cambios de esquema.
+- [x] **8.7 — Inválidos**: acción «Comprobar archivo» por canción en el menú de biblioteca; abre el descriptor SAF y comprueba pista/formato con `MediaExtractor` en `Dispatchers.IO`; estados visibles disponible/ausente/sin acceso/no válido, sin auto-eliminar ni borrar archivos. Estado por URI solo en presentación; Room v3, permisos y dependencias sin cambios. 6 pruebas JVM nuevas; validación final: 109/109 tests, `assembleDebug` OK, `git diff --check` limpio.
+- [x] **8.8 — UI Library completa**: SearchBar M3 conectada a la búsqueda reactiva 8.3 (debounce/cancelación conservados); Tabs Canciones/Artistas/Álbumes sobre rutas existentes y resúmenes SQL reales; FAB reutiliza selector SAF/importación; filas de canción con metadatos disponibles, portada/alternativa accesible, objetivos de 48 dp y estado de archivo 8.7; esqueleto inicial, estados vacía/sin coincidencias/error con reintento, sin confundir carga con vacío. Validación: 113 tests JVM OK, `assembleDebug` OK, `git diff --check` limpio; no hay `androidTest` ni `adb` disponible para validar UI en dispositivo.
+- [x] **8.9 — Tests**: conserva cobertura existente de Room/DAO y repositorio (listar, buscar, todos los órdenes, recientes, grupos, duplicados y eliminación lógica), modelos de biblioteca/estado e importación; amplía pruebas de consulta en curso cancelada, consulta de espacios, biblioteca real vacía, errores/cancelación al analizar archivos y retención del registro tras MISSING/INACCESSIBLE/INVALID. Suite JVM: 119 tests OK; `assembleDebug` y `git diff --check` OK. Sin pruebas de ViewModel/UI: `kotlinx-coroutines-test` no está aprobada y no existe infraestructura `androidTest`/Compose UI.
 - [ ] **8.10 — Validación final**: assembleDebug + testDebugUnitTest + diff --check + revisión de schema v3 + informe.
 
 Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 dependencias nuevas (salvo aprobación explícita en 8.9); sin datos inventados; contratos de 9/10 preparados sin implementar; migración v3 probada en JVM; pruebas de dispositivo siguen pendientes sin emulador.
@@ -315,9 +315,9 @@ Criterios de aceptación de la fase: biblioteca completa funcional sin red; 0 de
 
 # FASE 9 — REPRODUCTOR
 
-Estado: ⬜ Pendiente
+Estado: ✅ COMPLETADA (implementación y validación física confirmadas por el usuario).
 
-Objetivo: reproducción local completa. EVALUAR Media3/ExoPlayer ANTES de implementar: `androidx.media3` NO está en el classpath; agregarlo exige justificación (impacto APK, compatibilidad, mantenimiento) y tu aprobación explícita.
+Media3 fue evaluado y aprobado expresamente para esta fase: `androidx.media3:media3-exoplayer:1.11.1` y `androidx.media3:media3-session:1.11.1`. Se usa la pantalla completa de Navigation Compose elegida por el usuario; la UI no controla el reproductor subyacente.
 
 Arquitectura obligatoria (la UI nunca controla el reproductor subyacente):
 
@@ -327,26 +327,30 @@ UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 → archi
 
 ## 9.1 Reproducción
 
-- [ ] Play/pausa · anterior · siguiente · seek · ±10 s · duración · progreso · volumen.
-- [ ] Artwork real (copia de FASE 5) con placeholder del design system si no hay.
+- [x] Play/pausa · anterior · siguiente · seek · ±10 s · duración · progreso · volumen.
+- [x] Artwork real (copia de FASE 5) con placeholder del design system si no hay.
 
 ## 9.2 Cola y modos
 
-- [ ] Cola de reproducción (INDEPENDIENTE de la cola de descargas de 7.0; solo concepción no compartida), shuffle, repeat, repeat-one, comportamiento al finalizar la cola.
+- [x] Cola de reproducción independiente de la cola de descargas, selección desde biblioteca, navegación secuencial y comportamiento de cola vacía/fin.
+- [x] Repetición desactivada (predeterminada), repetición de cola y repetición de canción con ciclo de control explícito.
+- [x] Shuffle sin repetir canciones antes de completar el ciclo; activar/desactivar conserva la canción actual y funciona junto con ambos modos de repetición.
+- [x] Anterior/siguiente y MiniPlayer consultan la disponibilidad real de Media3, respetando shuffle y repetición.
+- [x] Controles accesibles de repetición y shuffle en la pantalla completa; el MiniPlayer conserva el espacio para reproducción, pausa y siguiente.
 
 ## 9.3 Fondo, sesión y energía
 
-- [ ] MediaSession · reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · pérdida de foco → pausa (ARCHITECTURE §3.1).
-- [ ] Recuperación de estado tras muerte del proceso (cola + posición).
-- Pendiente de decisión: MediaSessionService de Media3 vs servicio propio; documentado antes de implementar.
+- [x] MediaSession · servicio de reproducción en segundo plano · notificación multimedia · lock screen · auriculares/Bluetooth · gestión de foco (ARCHITECTURE §3.1); validación física confirmada por el usuario.
+- [x] Recuperación serializable de cola, índice, posición, `playWhenReady`, modos y orden shuffle tras recrear el servicio/proceso; snapshots v1 se restauran con modos predeterminados.
+- [x] Elección de `MediaSessionService` de Media3; permisos `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` declarados.
 
-Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel solo transmite estado; compilación y tests OK; instrumentadas pendientes si no hay dispositivo.
+Criterios de aceptación: Domain sin conocimiento de Media3 (control abstraído); ViewModel transmite estado; 141 pruebas unitarias aprobadas, `assembleDebug` y `git diff --check` exitosos en la validación previa. El usuario confirma la validación física satisfactoria de reproducción local, cola, modo normal, Repeat One, Repeat All, Shuffle y sus combinaciones, controles de pantalla completa y MiniPlayer, notificación/sesión multimedia y restauración de canción, posición, estado y modos. FASE 9 cerrada con base en esa confirmación; no se repiten ni se atribuyen pruebas nuevas a esta revisión.
 
 ---
 
 # FASE 10 — PLAYLISTS
 
-Estado: ⬜ Pendiente
+Estado: ✅ Completada.
 
 Modelo (m:n con orden independiente por lista):
 
@@ -354,24 +358,62 @@ Modelo (m:n con orden independiente por lista):
 Playlist ──< PlaylistSong >── Song
 ```
 
-- Room: tablas `playlists` y `playlist_songs` (playlistId, songUri, position): una canción en varias listas; una lista con muchas canciones; el orden es propio de cada lista.
-- Funciones: crear, renombrar, eliminar, añadir/quitar canciones, reordenar, reproducir la lista completa o desde una canción concreta, mostrar cantidad, artwork representativo (portada de la primera canción; nunca inventado).
-- Migración Room a la SIGUIENTE versión libre (esquema actual v2; la v3 planeada para descargas quedó pausada con su fase — aquí se usará la numeración que toque al implementar).
-- Diseñar antes de implementar; FK/ON DELETE y posicionamiento final se documentarán en ARCHITECTURE.md al implementar.
+- [x] Modelo m:n Room `playlists` y `playlist_songs` con orden propio por lista; migración v3→v4 sin pérdida de canciones.
+- [x] Contratos Domain y repositorio de playlists reactivos; creación/renombrado/eliminación, añadir/quitar y reordenar miembros con validación de nombres/orden.
+- [x] Navegación y UI Material 3: listado, estados vacío/error, crear/renombrar/eliminar con confirmación, detalle, añadir desde biblioteca, reordenar y quitar canciones.
+- [x] Reproducción de toda la lista o desde una canción concreta mediante el Player existente; artwork de la primera canción existente.
+- [x] Validación final: suite completa (145 pruebas, 0 fallos), `assembleDebug` exitoso, `git diff --check` limpio y revisión del diff.
+
+Validación final: `LibraryLoadModelTest`, `PlaylistRepositoryTest` y `RoomMigrationTest` pasan; la suite completa registra 145 pruebas, 0 fallos, 0 errores y 0 omitidas. `assembleDebug` termina con `BUILD SUCCESSFUL`; `git diff --check` devuelve 0. El fallo inicial era una sincronización insuficiente del test: con un único elemento, cambiar el orden no cambiaba el resultado y la condición de espera podía aceptar el estado anterior antes de que `flatMapLatest` suscribiera la nueva consulta. El test ahora espera estados emitidos por Flow/StateFlow y una lista de varias canciones que demuestra el cambio de orden. No se modificó código de producción.
+
+Decisiones de persistencia (ARCHITECTURE §8.1): borrar playlist elimina en cascada solo sus relaciones; borrar una canción de la biblioteca elimina en cascada sus membresías; nunca se borra un archivo físico. `(playlistId, songUri)` es clave primaria, `position` es orden por playlist con desempate determinista por URI; el repositorio valida el conjunto completo antes de reordenar transaccionalmente. Nombres se recortan y no pueden quedar vacíos; se permiten nombres repetidos.
 
 ---
 
 # FASE 11 — AJUSTES
 
-Estado: ⬜ Pendiente
+Estado: ✅ COMPLETADA (2026-10-29; validación física confirmada por el usuario en Android 14/API 34).
 
-- Apariencia: Sistema · Claro · Oscuro · Dynamic Color (evaluar soporte real con el stack actual).
-- Biblioteca: orden predeterminado · vista lista/cuadrícula · comportamiento al eliminar (decisión 8.3) · actualización/escaneo.
-- Reproducción: reanudar última canción · reproducción automática · shuffle/repeat predeterminados · comportamiento al finalizar.
-- Audio: SOLO opciones realmente implementables — configuraciones ficticias prohibidas.
-- Almacenamiento: ubicación · espacio utilizado · archivos temporales · información.
-- Acerca de: versión · información de la app · licencias de terceros.
-- Preferencias sencillas: DataStore CUANDO CORRESPONDA (dependencia nueva → requiere justificación + aprobación explícita; sin añadir ahora).
+- [x] Apariencia: Sistema · Claro · Oscuro · Dynamic Color (solo API compatible).
+- [x] Biblioteca: orden predeterminado · vista lista/cuadrícula · información de eliminación no destructiva · actualización/escaneo.
+- [x] Reproducción: restaurar sesión · reanudar automáticamente · shuffle/repeat predeterminados.
+- [x] Audio: información de reproducción local; no se ofrecen efectos inexistentes.
+- [x] Almacenamiento: ubicación y tamaño aproximado de datos privados, caché y base Room; no se borra contenido.
+- [x] Acerca de: versión, propósito y enlaces de licencias.
+- [x] Preferencias con `SharedPreferences` y `StateFlow`; sin dependencias añadidas.
+- [x] Escaneo MediaStore de `Music/` durante el cierre original de FASE 11; su alcance se ajusta después de la fase a `Audio/` (ver apartado siguiente).
+- [x] Identidad de fuente volumen+ruta, deduplicación SAF/MediaStore y actualización incremental por fecha/tamaño; Room v5 con migración v4→v5, sin cambiar URI de Song ni claves de playlist.
+- [x] `testDebugUnitTest`: 152 pruebas, 0 fallos/errores; `assembleDebug`: BUILD SUCCESSFUL; `git diff --check`: exit 0.
+- [x] Validación física confirmada por el usuario: temas y persistencia de ajustes; permiso de audio concedido/denegado; análisis manual y automático foreground de Music; canción nueva detectada; SAF y deduplicación; playlists; reproducción y restauración de sesión; almacenamiento y licencias.
+- [x] En la validación original se conservaron las 15 canciones SAF y las playlists; un análisis reportó 1 fuente conocida sin duplicado. Ese resultado corresponde al alcance `Music/` entonces vigente.
+
+### Biblioteca — Detección automática de canciones
+
+- Escaneo automático de archivos de audio disponibles en el dispositivo mediante MediaStore.
+- Detección dentro del alcance posterior `Audio/`; `Music/` no se incluye en el escaneo automático actual.
+- Incorporación de canciones descubiertas a la biblioteca existente.
+- Evitar duplicados entre canciones descubiertas automáticamente y canciones agregadas mediante SAF.
+- Actualización manual de la biblioteca mediante un escaneo.
+- Evaluar actualización automática cuando se incorporen nuevos archivos al dispositivo.
+- Mantener la importación manual SAF existente para archivos y carpetas externas.
+- Respetar permisos de Android y manejar archivos inaccesibles o eliminados sin borrar registros automáticamente.
+- No duplicar canciones ni perder playlists, metadatos o referencias de reproducción.
+- Definir cómo se identifican y actualizan los archivos que ya existen en Room.
+
+### Ajuste posterior a FASE 11 — `Audio/` y exclusión de WhatsApp (2026-10-29)
+
+Estado: implementación y validación automatizada completadas; validación específica en dispositivo pendiente. FASE 11 permanece cerrada.
+
+- El escaneo Data de MediaStore acepta únicamente rutas relativas cuya carpeta raíz sea `Audio/`; `Music/` ya no pertenece al alcance automático.
+- Se excluyen por ubicación, sin reglas por extensión o duración, `WhatsApp/Media/WhatsApp Audio/`, `WhatsApp/Media/WhatsApp Voice Notes/` y sus equivalentes bajo `Android/media/com.whatsapp/`; la comparación no distingue mayúsculas.
+- El resolver de identidad admite `Audio/` además de conservar el reconocimiento de claves históricas `Music/`. No cambia Room v5, `Song.uri`, las relaciones de playlist ni la importación manual SAF.
+- La primera indexación enlaza las identidades de canciones SAF existentes antes de importar equivalentes MediaStore. No borra canciones ni archivos.
+- Pruebas JVM cubren el alcance, exclusiones y variaciones de caja, SAF manual y conservación de 15 URI SAF y sus relaciones de playlist al registrar alias.
+- `testDebugUnitTest`: 161 pruebas, 0 fallos/errores; `assembleDebug`: BUILD SUCCESSFUL; `git diff --check`: exit 0.
+- `RELATIVE_PATH` se observó en el teléfono Android 14 como una ruta relativa sin `/` inicial. La consulta de solo lectura devolvió 252 filas y cinco rutas distintas: `Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Audio/`, `Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Audio/`, `Download/`, `Music/Zueira/` y `snaptube/download/SnapTube Audio/`. No había filas bajo `Audio/` y `/storage/emulated/0/Audio` no existe; sí existe `/storage/emulated/0/Music`. La detección física de `Audio/` queda pendiente hasta que exista contenido allí y se valide la compilación actualizada.
+- Se documentan las dos rutas observadas de WhatsApp Business, pero no se amplía la lista de exclusiones: ambas quedan fuera por el alcance raíz `Audio/`. Si el escaneo se amplía a otras raíces, se debe decidir explícitamente si excluirlas.
+- Un snapshot Room estable y de solo lectura contenía 15 canciones: 1 URI resolvió a `Music/Zueira/` y 14 a `snaptube/download/SnapTube Audio/`. Cero coincidían con `Audio/`, las cuatro ubicaciones WhatsApp solicitadas o las dos rutas observadas de WhatsApp Business. No se eliminaron registros ni archivos.
+- El escáner anterior consultaba `Music/`, por lo que las rutas WhatsApp observadas fuera de `Music/` no se incorporaron automáticamente mediante ese escaneo. La inspección actual no encontró registros coincidentes; cualquier importación manual posterior podrá seguir usándose por SAF.
 
 ---
 
@@ -437,19 +479,19 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 8 — Biblioteca completa: 8.0 AUDITORÍA/DISEÑO AUTORIZADO y documentado (2026-10-28). Implementación por entregas 8.1→8.10 autorizada (ver sección FASE 8 para las decisiones aprobadas: género real + migración v3 + índices album/dateAddedMs + eliminación solo-registro + inválidos identificados bajo demanda). FASE 7 🟡 PAUSADA (contratos 7.0 committeados en `84c687c`, intocables). FASE 5 verificada (37/37 tests + assembleDebug OK).
+FASE 11 — AJUSTES, completada (validación física confirmada por el usuario). FASE 10 — PLAYLISTS completada; FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
 
 Último cambio:
 
-FASE 8.0 — Documentación autorizada: PLAN.md FASE 8 (decisiones + entregas) y ARCHITECTURE.md §22.11 (modelo de biblioteca, migración v3, eliminación lógica/física, contratos para 9/10). Sin código.
+Ajuste posterior a FASE 11 — escaneo MediaStore de Audio/ y exclusión por ruta de WhatsApp; pendiente validación física específica.
 
 Roadmap replanificado (2026-10-28):
 
 - FASE 7 — DESCARGAS: 🟡 PAUSADA (retomar tras evaluar motor HTTP, segundo plano WorkManager/UIDT, NewPipe Extractor y condiciones legales).
-- FASE 8 — BIBLIOTECA COMPLETA: ⬜ próxima activa.
-- FASE 9 — REPRODUCTOR (Media3 prevista, pendiente de evaluación y aprobación de dependencia).
-- FASE 10 — PLAYLISTS (m:n con orden; migración Room a versión libre).
-- FASE 11 — AJUSTES (DataStore cuando corresponda; aprobación previa).
+- FASE 8 — BIBLIOTECA COMPLETA: completada previamente.
+- FASE 9 — REPRODUCTOR: ✅ completada; validación física confirmada por el usuario.
+- FASE 10 — PLAYLISTS: ✅ completada.
+- FASE 11 — AJUSTES: ✅ COMPLETADA; suite de 152 pruebas, compilación y validación física Android 14 confirmadas.
 - FASE 12 — INTEGRACIÓN FINAL (los flujos importar→reproducir→playlist y compatibilidad con descargas futuras).
 - FASE 13 TESTING / 14 OPTIMIZACIÓN / 15 RELEASE: intactas tras la 12.
 

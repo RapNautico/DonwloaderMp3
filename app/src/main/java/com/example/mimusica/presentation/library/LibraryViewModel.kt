@@ -3,15 +3,13 @@ package com.example.mimusica.presentation.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mimusica.domain.importing.ImportReport
-import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongFileAvailability
+import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.example.mimusica.domain.repository.SongFileValidator
+import com.example.mimusica.domain.repository.AppSettingsRepository
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** Estado de una importación en curso (requisito FASE 5 §7/§8). */
 sealed interface ImportState {
@@ -35,27 +33,114 @@ sealed interface ImportState {
 class LibraryViewModel(
     private val importAudioUseCase: com.example.mimusica.domain.importing.ImportAudioUseCase,
     private val songRepository: SongRepository,
+    songFileValidator: SongFileValidator,
+    private val appSettingsRepository: AppSettingsRepository,
 ) : ViewModel() {
 
-    private val songs = MutableStateFlow<List<Song>>(emptyList())
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val importModel = LibraryImportModel { uris, onProgress ->
+        importAudioUseCase(uris, onProgress)
+    }
+    val importState: StateFlow<ImportState> = importModel.state
 
-    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
-    val importState: StateFlow<ImportState> = _importState.asStateFlow()
+    private val loadModel = LibraryLoadModel(songRepository)
 
-    private val importMutex = Mutex()
+    /** Carga inicial, contenido y error de biblioteca son estados excluyentes explícitos. */
+    val libraryState: StateFlow<LibraryLoadState> = loadModel.state
 
-    /** Canciones para la UI. */
-    val library: StateFlow<List<Song>> = songs.asStateFlow()
+    // ---------- Gestión: eliminar de biblioteca (FASE 8.6) ----------
+
+    /**
+     * Eliminación SOLO del registro Room (D8.3, ConfirmDialog en la UI).
+     * Reproducir (FASE 9) y Añadir a playlist (FASE 10) son callbacks
+     * FUTUROS del plan 8.6: todavía NO tienen lógica aquí ni en la UI.
+     */
+    private val managerModel = LibraryManagerModel(songRepository)
+    private val fileCheckModel = LibraryFileCheckModel(songFileValidator)
+
+    /** Estado por URI de la última comprobación explícita de archivo. */
+    val fileAvailability: StateFlow<Map<String, SongFileAvailability>> = fileCheckModel.availability
+
+    /** true mientras hay una eliminación en curso. */
+    val manageBusy: StateFlow<Boolean> = managerModel.busy
+
+    /** Error de la última eliminación; null = sin error. */
+    val manageError: StateFlow<String?> = managerModel.error
+
+    /** Decide ya CONFIRMADA por el usuario (ConfirmDialog); lanza en VM scope. */
+    fun deleteLibrarySong(uri: String) {
+        viewModelScope.launch { managerModel.deleteSong(uri) }
+    }
+
+    /** Comprueba una URI fuera del hilo principal; no modifica Room ni el archivo. */
+    fun checkLibrarySongFile(uri: String) {
+        viewModelScope.launch { fileCheckModel.check(uri) }
+    }
+
+    /** Reintenta Room; el query visible también se vuelve a suscribir. */
+    fun retryLibraryLoad() {
+        loadModel.retry()
+        listModel.refresh()
+    }
+
+    // ---------- Búsqueda y orden (FASE 8.3) ----------
+
+    /**
+     * Lógica de búsqueda/orden delegada a [LibraryListModel] (testeable en JVM
+     * con scope propio: viewModelScope usa Dispatchers.Main, indisponible en
+     * pruebas unitarias sin `kotlinx-coroutines-test`, NO autorizada).
+     */
+    private val listModel = LibraryListModel(
+        songRepository = songRepository,
+        initialSort = appSettingsRepository.settings.value.defaultSongSort,
+    )
+
+    /** Consulta de búsqueda tal cual el usuario la escribe (el trim aplica al consultar). */
+    val searchQuery: StateFlow<String> = listModel.query
+
+    /** Orden del listado: ESTADO de UI sin persistencia (PLAN 8.3: sin DataStore en 8.x). */
+    val sort: StateFlow<SongSort> = listModel.sort
+
+    /** Lista visible (filtrada + ordenada) con su error asociado, si lo hubo. */
+    val visibleSongs: StateFlow<LibraryListModel.VisibleSongs> = listModel.visibleSongs
+
+    /** Error de la última búsqueda; null = sin error. */
+    val searchError: StateFlow<String?> = listModel.error
 
     init {
+        loadModel.observeIn(viewModelScope, listModel.sort)
         viewModelScope.launch {
-            songRepository.observeLibrary().collect { list ->
-                songs.value = list
-                _isLoading.value = false
+            appSettingsRepository.settings.collect { settings ->
+                if (listModel.sort.value != settings.defaultSongSort) {
+                    listModel.onSortChange(settings.defaultSongSort)
+                }
             }
         }
+        viewModelScope.launch {
+            loadModel.state.collect { state ->
+                fileCheckModel.retainSongs(state.songs.mapTo(mutableSetOf()) { it.uri })
+            }
+        }
+        listModel.startIn(viewModelScope, loadModel.state)
+    }
+
+    /** Cambia la consulta; el debounce (500 ms) evita consultar por cada pulsación. */
+    fun onSearchQueryChange(query: String) {
+        listModel.onQueryChange(query)
+    }
+
+    /** Cambia el orden del listado (estado de UI; sin DataStore en FASE 8). */
+    fun onSortChange(sort: SongSort) {
+        listModel.onSortChange(sort)
+        viewModelScope.launch {
+            appSettingsRepository.update(
+                appSettingsRepository.settings.value.copy(defaultSongSort = sort),
+            )
+        }
+    }
+
+    /** Borra la búsqueda (vuelve al listado completo en el orden actual). */
+    fun clearSearch() {
+        listModel.clearQuery()
     }
 
     /**
@@ -65,31 +150,11 @@ class LibraryViewModel(
      */
     fun importFiles(uriStrings: List<String>) {
         if (uriStrings.isEmpty()) return
-        viewModelScope.launch {
-            val locked = importMutex.tryLock()
-            if (!locked) return@launch // ya hay una importación en curso: ignorar
-
-            try {
-                _importState.value = ImportState.Running(current = 0, total = uriStrings.size)
-                val report = try {
-                    importAudioUseCase(uriStrings) { current, total ->
-                        _importState.value = ImportState.Running(current, total)
-                    }
-                } catch (unexpected: Throwable) {
-                    _importState.value = ImportState.Failed(
-                        message = unexpected.message ?: "Error inesperado",
-                    )
-                    return@launch
-                }
-                _importState.value = ImportState.Done(report)
-            } finally {
-                importMutex.unlock()
-            }
-        }
+        viewModelScope.launch { importModel.importFiles(uriStrings) }
     }
 
-    /** Vuelve a Idle tras mostrar el resultado (caller:.dismiss tras snackbar). */
+    /** Vuelve a Idle tras mostrar el resultado (caller: dismiss tras snackbar). */
     fun dismissImportResult() {
-        _importState.update { ImportState.Idle }
+        importModel.dismissResult()
     }
 }

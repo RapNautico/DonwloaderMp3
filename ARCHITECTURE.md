@@ -107,19 +107,24 @@ Reglas de dependencia:
 ```mermaid
 flowchart LR
     Screen["Composable"] -->|intencion| PVM["PlayerViewModel"]
-    PVM --> PC["PlayerController"]
-    PC --> SVC["MediaPlaybackService (foregroundServiceType=mediaPlayback)"]
-    SVC --> MS3["Media3 Player"]
-    MS3 --> MSES["MediaSession (lock screen, Bluetooth, auriculares)"]
-    AF["AudioFocus / interrupciones"] --> MS3
-    SVC --> NOTIF["Notificacion multimedia"]
+    PVM --> DOMAIN["Domain: PlayerController + PlaybackState"]
+    DOMAIN --> DATA["Data: Media3PlayerController"]
+    DATA --> SESSION["MediaController / SessionToken"]
+    SESSION --> SVC["MediaPlaybackService (foregroundServiceType=mediaPlayback)"]
+    SVC --> MS3["ExoPlayer"]
+    MS3 --> MSES["MediaSession (notificacion, lock screen, Bluetooth)"]
+    AF["AudioFocus / audio becoming noisy"] --> MS3
 ```
 
 Responsabilidades:
 
-- El servicio de reproduccion sobrevive a la destruccion de la Activity.
-- Perdida de foco de audio: pausar segun el estandar de Android. Desconexion de auriculares: pausar. Fin de cola: detener el servicio.
-- Recuperacion de estado: cola y posicion persistidas para restaurar tras muerte del proceso (detalle en FASE 10).
+- `PlayerController` y los modelos de playback viven en Domain; Presentation no conoce Media3.
+- `Media3PlayerController` conecta la UI con la sesion usando `MediaController`, expone estado mediante `StateFlow` y propaga `CancellationException`.
+- `MediaPlaybackService` es dueño del `ExoPlayer` y `MediaSession`; se declara como foreground service de tipo `mediaPlayback`.
+- ExoPlayer gestiona el foco de audio y `setHandleAudioBecomingNoisy(true)` pausa al desconectar auriculares.
+- La cola, el indice, la posicion, `playWhenReady`, el modo de repeticion, el estado shuffle y su orden completo se guardan como datos serializables en preferencias privadas, nunca como objetos Media3. El codec lee snapshots v1 y asigna modos predeterminados a los campos que no existian.
+- El acceso a canciones se realiza mediante las URI persistidas por SAF. Si una URI ya no es legible, el error de Media3 se refleja en el estado de playback; no se elimina el registro de Room.
+- La validacion fisica de notificacion, lock screen, foco, auriculares, modos de reproducción y restauracion de FASE 9 fue confirmada por el usuario en teléfono Android 14.
 
 ## 3.2 Ciclo de vida de una descarga
 
@@ -159,6 +164,7 @@ Componentes:
 - Screens.
 - ViewModels.
 - UI State.
+- `PlayerViewModel` transmite el estado de `PlayerController` a `PlayerScreen` y `MiniPlayer`.
 
 La Presentation NO debe:
 
@@ -215,7 +221,10 @@ media/
 storage/
 source/
 metadata/
+player/
 ```
+
+`data/player` contiene el controlador Media3, el servicio de sesion y el codec/almacenamiento de la instantanea serializable de reproduccion.
 
 ---
 
@@ -251,6 +260,15 @@ database/
 Room almacena metadata.
 
 Los archivos de audio se almacenan fuera de SQLite.
+
+## 8.1 Playlists (FASE 10)
+
+- `PlaylistEntity` y `PlaylistSongEntity` implementan la relación m:n entre playlists y `SongEntity`; el orden pertenece a cada playlist.
+- `playlist_songs` usa `(playlistId, songUri)` como clave primaria. Las filas se leen por `position` y luego `songUri`, lo que da un orden estable. La reordenación valida que reciba exactamente las URIs actuales y actualiza posiciones dentro de una transacción.
+- Las dos claves foráneas usan `ON DELETE CASCADE` solo para filas de `playlist_songs`: borrar una playlist borra sus membresías; borrar una canción de Room la quita de todas las playlists. Ninguna operación de playlist borra archivos físicos.
+- La migración v3→v4 crea las tablas e índices de las relaciones sin modificar filas existentes de canciones. No se usa fallback destructivo.
+- El nombre se recorta y se rechaza si queda vacío; se permiten nombres duplicados. El ID autogenerado preserva identidad aunque se renombre.
+- `PlaylistRepository` expone listas y detalles como Flow. Presentation transforma errores en estado visible y solicita reproducción al `PlayerViewModel` reutilizado; no controla Media3 ni accede a Room.
 
 ---
 
@@ -671,37 +689,44 @@ La FASE 7 queda PAUSADA tras completar la entrega 7.0 (contratos de dominio + pr
 - `domain/source/*` y `domain/download/*` son Kotlin puro, sin Android, sin Room y sin proveedores: la pausa NO los condiciona. El motor (7.2) y la persistencia de descargas (7.3) se montarán ENCIMA de estos contratos.
 - Integración con la biblioteca por el mismo camino que la importación local: `DownloadRequest` → archivo local validado reutilizando el lector real de FASE 5 (MediaExtractor) → `SongRepository.addSongs` (URI = fichero local; dedup por URI). Una canción descargada en el futuro será, para la biblioteca, indistinguible de una importada.
 
-## Arquitectura prevista del reproductor (FASE 9, sin decidir dependencias)
+## Arquitectura del reproductor (FASE 9)
 
 ```text
 UI → PlayerViewModel → PlayerController/PlaybackManager → Media3 (candidato, pendiente de evaluación) → archivo local
 ```
 
-- La UI transmite estado y actions; el control del reproductor queda en Data/service; Domain define el playback contract puro (cola incluida).
+- La UI transmite estado y acciones; el control del reproductor queda en Data/service; Domain define el playback contract puro (cola incluida).
 - La cola de reproducción es independiente de `DownloadQueue` (7.0); solo comparten estilo FIFO/estados.
-- MediaSessionService de Media3 vs service propio: DECISIÓN PENDIENTE (depende de aprobar Media3).
-- Modo fondo/notificación/Bluetooth: diseño igual a §3.1; cualquier dependencia nueva se aprueba explícitamente.
+- Media3 `MediaSessionService` implementa reproducción en segundo plano, notificación, lock screen y controles externos, según §3.1.
+- Repeat/Shuffle se delegan a Media3; Domain expone modos propios y el snapshot serializable conserva modo, shuffle order y estado de cola.
 
-## Arquitectura prevista de playlists (FASE 10)
+## Arquitectura de playlists (FASE 10)
 
 ```text
 Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de cada lista)
 ```
 
-- Tablas `playlists` + `playlist_songs` con MIGRACIÓN Room (la versión exacta se asigna al implementar; hoy v2; la v3 pensada para descargas no se consumió y la numeración se resuelve entonces).
-- FK y ON DELETE (quitar canción de lista ≠ borrar canción) se deciden en FASE 10. Reproducir desde canción concreta = cola inicial construida desde esa posición.
+- Tablas Room `playlists` y `playlist_songs` añadidas en la migración v3→v4; `position` define el orden propio de cada playlist.
+- `playlist_songs` tiene PK `(playlistId, songUri)` y FKs con `ON DELETE CASCADE` desde la playlist y `SongEntity`. Cascade elimina exclusivamente la membresía en la relación: borrar una canción de Room la quita de las playlists, pero nunca borra el archivo físico.
+- La reordenación verifica transaccionalmente que la entrada sea una permutación exacta de las URIs actuales. Nombres se recortan y no pueden quedar vacíos; nombres duplicados se permiten.
+- `PlaylistRepository` expone listas/detalle mediante Flow; reproducir desde la lista o un elemento reutiliza el `PlayerViewModel` y construye la cola desde el orden persistido.
 
-## Arquitectura prevista de ajustes (FASE 11)
+## Arquitectura de ajustes (FASE 11)
 
-- Preferencias simples con DataStore candidato (dependencia nueva pendiente de aprobación; alternativa: hasta entonces, sin settings, nada).
-- Los ajustes afectados a FASE 8–9 (tema, orden, comportamiento de borrar, reanudación) leerán esas preferencias; ninguna opción decorativa sin implementación real.
+- Preferencias simples implementadas con `SharedPreferences` y `StateFlow`, sin dependencia nueva; `AppSettingsRepository` pertenece a Domain y su implementación a Data.
+- La UI consume y modifica preferencias por `SettingsViewModel`; el tema, orden/vista de biblioteca y opciones de restauración/reproducción se aplican desde sus respectivos puntos de integración.
+- El snapshot válido del reproductor prevalece sobre defaults. Los defaults de repetición/aleatorio se aplican cuando no hay cola restaurada; restaurar sesión y reanudar audio son decisiones separadas.
+- La detección automática usa `MediaStore` y se restringe a `RELATIVE_PATH` bajo `Audio/` en la raíz del volumen; `Music/` no está en el alcance actual. Se excluyen por ruta (sin filtrar por extensión/duración) las carpetas WhatsApp Audio y WhatsApp Voice Notes enumeradas en PLAN.md, con comparación insensible a mayúsculas. Solicita `READ_MEDIA_AUDIO` (API 33+) o `READ_EXTERNAL_STORAGE` hasta API 32.
+- El `ContentObserver` solo está registrado mientras la app tiene una Activity iniciada y la preferencia está activa. Cambios se agrupan con debounce; consultas e importación corren fuera del hilo principal.
+- `song_source_identities` (Room v5, migración v4→v5) guarda alias de identidad por volumen+ruta relativa y tamaño/fecha de modificación. `songs.uri` y las claves de playlists permanecen intactas; una identidad ambigua no se fusiona.
+- Las canciones nuevas o modificadas se preparan mediante el importador SAF existente. No se eliminan registros ni archivos automáticamente; SAF sigue disponible para proveedores externos.
+- El ajuste posterior a FASE 11 amplía la identidad de origen para la carpeta raíz `Audio/` y enlaza URI SAF existentes antes de importar su equivalente MediaStore; no modifica el esquema ni las URIs almacenadas. La importación SAF manual no usa el filtro de carpetas del escáner. En Android 14, `/storage/emulated/0/Audio` no existe y MediaStore no devolvió filas `Audio/`; sí observó rutas de WhatsApp Business bajo `Android/media/com.whatsapp.w4b/`, fuera de la allowlist `Audio/` y documentadas en PLAN.md. La validación física del escáner actualizado sigue pendiente.
 
 ## Decisiones pendientes (bloqueantes de fases concretas)
 
-- Media3: aprobar dependencia (Fase 9). Alternativa sin API: plataforma propia no es viable a plazo razonable → la evaluación debe cubrir impacto APK y versiones compatibles.
 - WorkManager/UIDT: motores del pausado sistema de descargas (Fase 7).
 - OkHttp/HttpURLConnection: del motor de descarga pausado (Fase 7).
-- DataStore: para Fase 11 (alternativa: SharedPreferences/documents comunes ya disponibles, menos idiomática).
+- La preferencia de almacenamiento simple de FASE 11 se resolvió con `SharedPreferences`; no se incorporó DataStore.
 - Comportamiento de eliminación de canción (quitar registro vs borrado físico confirmado): se consolidará en FASE 8 §8.3.
 - Almacenamiento final de descargas (app-privado vs MediaStore): Fase 7 al retomarla; FASE 8 no depende de esto.
 - minSdk/dynamic color y demás detalles de apariencia: al definir Fase 11 sobre lo ya implementado.
@@ -723,11 +748,12 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 - `MIGRATION_1_2` existente se conserva; nueva **`MIGRATION_2_3`** (suspend, `connection.prepare/step`, mismos hechos verificados de `SQLiteConnection` — NO existe `execSQL`):
   - `ALTER TABLE songs ADD COLUMN genre TEXT`.
   - `CREATE INDEX index_songs_album ON songs(album)` y `index_songs_dateAddedMs` — justificados SOLO porque las consultas previstas (dectalle/orden por álbum, recientes) los usan en WHERE/ORDER BY. La PK `uri` ya garantiza el índice por URI.
-- Schemas v1/v2/v3 exportados. El plan de migración para descargas (FASE 7 pausada) tomará la siguiente versión libre al retomarse.
+- Schemas v1/v2/v3 exportados. FASE 10 añadió v4; cualquier migración de descargas futura debe usar la siguiente versión libre cuando se autorice esa fase.
 
 ## D8.3 Consultas y repositorio
 
 - Agrupados de artistas/álbumes con SQL (`GROUP BY`/conteo) — sin cargar toda la biblioteca ni hacer N+1 desde UI.
+- **Orden (FASE 8.3)**: el orden de la biblioteca completa SIEMPRE en SQL (consultas dedicadas por orden en `SongDao`, desempate estable por `uri`; sin índices nuevos). El orden seleccionado es estado de UI sin persistencia (sin DataStore en FASE 8). En solo los RESULTADOS de búsqueda (subconjunto filtrado, pequeño) se re-ordena en memoria con `SongSort.toComparator()`, replicando EXACTAMENTE el ORDER BY SQL (plegado ASCII = COLLATE NOCASE, tildes sin plegar, nulls al final, desempate uri) — paridad SQL↔comparador asertada en pruebas.
 - **Comportamiento REAL del LIKE (decisión 8.2):** la búsqueda incluye título, artista y álbum; `%` y `_` de la consulta del usuario son **TEXTO LITERAL** (escapados con `ESCAPE '\'` en `SongRepositoryImpl.escapeLikePattern`, único punto de la política); la insensibilidad de mayúsculas es la REAL de SQLite (solo ASCII; las tildes NO se pliegan — el folding de acentos, si la UI lo desea, se decide en 8.3 a nivel de consulta del usuario, nunca en la BD). Búsqueda vacía (tras trim) = biblioteca completa vía consulta dedicada. Orden secundario SIEMPRE por `uri` para resultados equivalentes estables.
 - **Orden en presencia de NULL**: en los listados de un álbum/artista, SQLite ordena `NULL < texto` (comportamiento real, asertado). En `ArtistSummary`/`AlbumSummary` el bucket desconocido se ordena AL FINAL con `CASE WHEN`.
 - `ArtistSummary`/`AlbumSummary` en Domain (Kotlin puro); el valor NULL (desconocido) se modela explícitamente, sin sustituirlo por cadenas mágicas en la base de datos.
@@ -738,6 +764,40 @@ Decisión previa al código. Completa los contratos ya existentes (Room v2, `Son
 - Reproducción: la UI llamará a un `PlayerController` (interfaz de FASE 9) — en 8.6 queda como callback no operativa claramente marcado; nada de Media3 en el classpath.
 - Playlists: `Song`/`.uri` usado como identidad compartida (PK de `songs`) es compatible con la futura tabla de unión `playlist_songs(songUri, ...)`.
 - Prueba de migración instrumentada (RoomMigrationTestHelper) sigue pendiente por falta de emulador; la validación JVM re-open con datos previos cubre el caso feliz.
+
+## D8.5 Navegación por artistas/álbumes (FASE 8.4, 2026-10-29)
+
+- **Rutas anidadas**: las vistas de biblioteca viven en un `navigation(...)` con grafo de ruta `library` (start `library/songs`). La bottom bar NO cambió: su destino "library" ahora resuelve al grafo (mismo comportamiento) y la selección se conserva en las rutas hijas vía `hierarchy`. `openGroup()` codea el nombre con `Uri.encode` (espacios, `/`, `&` llegan intactos); para el bucket desconocido la ruta va SIN parámetro — el `null` es un destino normal, no una anomalía.
+- **Contrato de detalle**: usa las consultas suspend de 8.2 (`getSongsByArtist`/`getSongsByAlbum`, orden SQL definido) con CARGA ÚNICA al abrir el grupo: el snapshot es suficiente en FASE 8 (sin reproducción ni edición que muten el grupo desde el detalle); la reactividad completa del detalle se reevalúa con el reproductor de FASE 9. Las LISTAS de resúmenes sí son reactivas (DAO Flow, re-emite con cada cambio de `songs`).
+- **Null → etiqueta**: el nombre `null` viaja intacto Domain→Presentation; "Artista desconocido"/"Álbum desconocido" existe SOLO en `ui/screens` (regla Summaries.kt). El detalle con datos no válidos no crashea: Loading→Content|Error explícitos.
+- **Reutilización**: `SongRow`/`SongList`/`ArtworkThumbnail`/`formatDuration` extraídos de `LibraryScreen` a `components/SongListItems.kt` (un único punto de filas de canción para biblioteca y detalles; FASE 9/10 lo reutilizará).
+- **ViewModels con argumento de ruta**: factories por destino en `AppContainer` (`artistDetailViewModelFactory(name)` / `albumDetailViewModelFactory(name)`); DI sigue manual.
+- **Pruebas**: 8 casos de `GroupSummariesModel`/`GroupDetailModel` (JVM, scope propio como 8.3, `await` por predicado sin debounce) — reactividad de resúmenes, bucket `null` navegable, nombres especiales, error conservando lista previa / estado Error sin crash, contenido vacío. `kotlinx-coroutines-test` sigue sin aprobarse.
+
+## D8.6 Detalle de canción (FASE 8.5, 2026-10-29)
+
+- **Bottom sheet M3 como destino**: ruta `library/song?uri={uri}` dentro del grafo `library` (parámetro tipo query + nullable: la URI real `content://...` se codea con `Uri.encode` para sobrevivir a `/`, `:`, `%`; ausente → pantalla defiende con NotFound, sin crash). El sheet se cierra con swipe/back → `popBackStack`.
+- **Datos REALES únicamente**: `Song` viaja INTACTO Domain→Presentation (contrato existente `getSong(uri)` de 8.2); los `null` del DOMAIN se sustituyen por "Desconocido" SOLO en la UI (`song_detail_unknown`); el bitrate convertido a kbps es matemática exacta del valor medido en importación (MediaExtractor), sin redondeos engañosos; tamaño/frecuencia/muestras con formato determinista (Locale.ROOT, punto decimal). Duración reutiliza `formatDuration` (0 = desconocida).
+- **Estados**: Loading / Content / NotFound (canción quitada de la biblioteca o uri desconocida) / Error — nunca crash por datos (AGENTS §12). El archivo YA NO DISPONIBLE pero registrado sigue mostrando sus metadatos; su detección bajo demanda con badge es la FASE 8.7 (sin implementar aquí).
+- **Acceso reutilizando componentes**: fila de canción clicable opcional (`SongRow(onSongClick)` — null = no clicable, como la reproducción aún pendiente); activo en biblioteca y en los detalles de artista/álbum (8.4). Sin menú contextual ni eliminación: eso es la 8.6.
+- **Sin cambios de esquema ni dependencias**: Room v3 intacta; ningún método nuevo en el repositorio.
+- **Pruebas**: 8 casos de `SongDetailModel` + helpers puros (JVM, `runBlocking` directo — el `load()` es suspend, sin Main): carga con nulls intactos, NotFound, uri nula/vacía sin consultar repo, error del repo sin crash, formato exacto de tamaño/bitrate/frecuencia. Sin `kotlinx-coroutines-test` (no autorizada).
+
+## D8.7 Gestión de canciones (FASE 8.6, 2026-10-29)
+
+- **Alcance EXACTO del plan 8.6**: menú contextual por canción con cuatro acciones. «Reproducir» y «Añadir a playlist» son ítems presentes e INOPERANTES (`enabled=false`, callbacks por refuerzo identificados para FASE 9/10) — sin Media3 ni tabla de playlists en el classpath. «Información» reutiliza el detalle de 8.5. «Eliminar de biblioteca» es la única acción de gestión activa; la comprobación del archivo se añade en D8.8.
+- **Eliminación = SOLO registro Room** (D8.3 ratificada): llega a `deleteSong(uri)` (contrato 8.2, existente) SOLO tras el `AlertDialog` de confirmación, cuyo texto dice explícitamente «El archivo no se borra del dispositivo»; el borrado físico sigue sin implementarse (acción futura separada con aprobación, ARCHITECTURE D8.3).
+- **Concurrencia y errores**: una eliminación a la vez (`LibraryManagerModel.busy`; segunda llamada concurrente se ignora); fallo → `manageError` → banner errorContainer SIN borrar la lista, limpiado por el siguiente éxito (política 8.3/8.4). La SINCRONIZACIÓN lista↔Room es 100 % reactiva con los Flows ya existentes (biblioteca completa, búsqueda, resúmenes de artista/álbum): el modelo no recarga nada.
+- **Ubicación del menú**: solo en la biblioteca (`SongList(menuFactory=...)`); los detalles de artista/álbum (8.4) conservan filas simples — la distribución final de gestión se reevalúa en 8.8 (Tabs), sin inventar alcance.
+- **Sin cambios de esquema ni dependencias**; pruebas JVM directas de `LibraryManagerModel` (5 casos).
+
+## D8.8 Disponibilidad de archivos (FASE 8.7)
+
+- La comprobación es **bajo demanda por canción** desde el menú de biblioteca; nunca se recorren archivos al iniciar la app. Reutiliza el `ContentResolver` y `AudioMetadataReader.streamFormat`/`MediaExtractor` sobre la URI SAF y sus permisos persistibles existentes, siempre en `Dispatchers.IO`. Abrir el descriptor primero distingue falta de archivo/permiso de un error al analizar el stream.
+- Los resultados viven solo en estado de presentación, por URI (no cambian `Song`, Room ni el esquema): disponible, ausente (`FileNotFoundException`), inaccesible (permiso revocado o fallo I/O/proveedor al abrir) y no válido (URI/formato/estructura sin pista de audio admitida, o error I/O al analizarla). Una URI se vuelve a comprobar explícitamente para actualizar el estado.
+- El análisis valida el contenedor y las pistas expuestas por `MediaExtractor`; no decodifica el archivo completo, por lo que no promete detectar corrupción posterior dentro del flujo de audio.
+- Ningún resultado elimina registros ni archivos. La retirada de un registro continúa siendo una acción manual separada, con la confirmación existente de D8.7; los estados se descartan al salir la URI de la biblioteca.
+- Sin permisos, dependencias, migraciones ni cambios a los contratos de `domain/source/*` o `domain/download/*`.
 
 ---
 

@@ -43,8 +43,8 @@ flowchart LR
 ```
 
 - Navegación con Navigation Compose; bottom bar con 5 destinos (Home, Library, Playlists, Downloads, Settings).
-- MiniPlayer persistente sobre la bottom bar cuando hay reproducción activa; tap abre Player.
-- Player puede abrirse como bottom sheet expandible; decisión final de patrón (pantalla vs sheet) se valida con prototipo en Fase 2.
+- MiniPlayer persistente sobre la bottom bar cuando hay una canción seleccionada; tap en la canción abre Player.
+- Player es una pantalla completa dentro de Navigation Compose (decisión aprobada para FASE 9); la bottom bar se oculta en ese destino.
 
 ---
 
@@ -58,13 +58,15 @@ flowchart LR
 ## 3.2 Library
 
 - Lista de canciones con portada, título, artista, duración. Barra de búsqueda, orden, filtros (artista/álbum). Acción: reproducir, añadir a playlist, eliminar.
+- La disponibilidad del archivo se comprueba bajo demanda por canción. Mostrar estados de comprobación, archivo disponible, ausente, sin acceso o no válido; una comprobación nunca elimina el registro ni el archivo físico.
 - Estados: Loading · Empty («Tu biblioteca está vacía» + CTA) · Error (acceso a datos fallido, con reintento) · Success. Operaciones masivas → estado Processing.
 
 ## 3.3 Playlists
 
-- Lista de listas de reproducción; crear, renombrar, eliminar, reordenar.
-- Detalle: canciones de la playlist, quitar/ordenar, reproducir todo.
-- Estados equivalentes al resto.
+- Lista de playlists con portada de la primera canción disponible (si no hay canción/portada, placeholder neutro), cantidad y acciones para crear, renombrar y eliminar con confirmación.
+- Detalle: añadir canciones existentes desde la biblioteca, quitar canciones, reordenar con controles accesibles y reproducir toda la playlist o desde una canción seleccionada.
+- La acción «Añadir a playlist» de la biblioteca abre la selección de una playlist existente; una playlist vacía orienta a crear una desde la sección Playlists.
+- Estados equivalentes al resto, incluyendo carga, error, lista vacía y detalle vacío.
 
 ## 3.4 Downloads
 
@@ -72,8 +74,11 @@ flowchart LR
 
 ## 3.5 Player (pantalla completa)
 
-- Portada grande, título/artista, barra de seek, play/pausa, siguiente, anterior, ±10 s, cola contextual.
+- Portada grande real cuando exista, título/artista, barra de seek, play/pausa, siguiente, anterior, ±10 s, volumen y cola contextual.
+- Controles de reproducción en pantalla completa: repetición desactivada → repetir toda la cola → repetir canción → desactivada; shuffle se activa/desactiva sin cambiar la canción actual. Shuffle recorre todas las canciones antes de iniciar otro ciclo y se combina con ambos modos de repetición.
+- Repeat/Shuffle activos se distinguen visualmente y exponen descripciones y estado accesibles. El MiniPlayer mantiene sus acciones esenciales; los modos se controlan desde la pantalla completa.
 - Transmite estado del reproductor (no posee lógica de reproducción).
+- Estados: sin canciones, cargando, reproduciendo, pausa, fin de cola y error de lectura/acceso.
 
 ## 3.6 Añadir audio
 
@@ -84,7 +89,13 @@ flowchart LR
 
 ## 3.7 Settings / Ajustes
 
-- Calidad predeterminada, Wi-Fi solamente, tema (sistema/claro/oscuro), almacenamiento info, temporales, acerca de.
+- **Apariencia:** tema Sistema/Claro/Oscuro y Color dinámico cuando la plataforma lo admite.
+- **Biblioteca:** orden inicial, vista lista/cuadrícula, explicación de que quitar una canción elimina solo su registro, actualización manual de `Music/` y preferencia de observación automática mientras la app está activa.
+- **Reproducción:** restaurar sesión, reanudar automáticamente y defaults de Shuffle/Repeat para una cola sin snapshot restaurado.
+- **Audio:** información honesta de reproducción local; no exponer ecualizador ni efectos inexistentes.
+- **Almacenamiento:** ubicación privada de la aplicación y medición aproximada de archivos privados, caché y base de datos. No contabilizar como propios los archivos externos referenciados por URI ni borrarlos.
+- **Acerca de:** versión, finalidad de la app e información de licencias.
+- El escaneo muestra permiso requerido, procesamiento, resultado y error; la importación manual SAF sigue disponible por separado.
 
 ---
 
@@ -111,8 +122,8 @@ Regla: prohibido duplicar; cualquier pantalla nueva parte de estos componentes. 
 
 | Permiso / situación | Estrategia |
 |---|---|
-| Notificaciones (API 33+) | Se pide solo al activar background playback, con rationale previa; app funciona sin ella (solo sin notificación). |
-| Foreground media playback | Sin permiso especial: uso del tipo `mediaPlayback` con las restricciones del sistema. |
+| Notificaciones (API 33+) | La sesión multimedia publica los controles del sistema; no se solicita `POST_NOTIFICATIONS` para iniciar esta reproducción foreground. Validar visibilidad real en dispositivo. |
+| Foreground media playback | Declarar `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` junto al tipo `mediaPlayback` del servicio, según API objetivo. |
 | Almacenamiento | Nada de WRITE_EXTERNAL_STORAGE legacy: MediaStore (add/write sin permiso en API 30+) y SAF para importar. |
 | Acceso a archivos existentes | Acceso a URI a través del Resolver/SAF, con detección de URI revocada. |
 
