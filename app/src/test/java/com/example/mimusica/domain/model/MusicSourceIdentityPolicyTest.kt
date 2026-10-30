@@ -26,6 +26,14 @@ class MusicSourceIdentityPolicyTest {
     }
 
     @Test
+    fun `identidad de Audio conserva volumen y normaliza mayusculas de carpeta`() {
+        assertEquals(
+            "music:primary:Audio/Albums/song.mp3",
+            MusicSourceIdentityKey.fromRelativePath("external_primary", "audio/Albums/song.mp3"),
+        )
+    }
+
+    @Test
     fun `solo reimporta una fuente nueva o con metadata de origen cambiada`() {
         val source = SongSourceIdentity("music:primary:Music/song.mp3", 1_000L, 400L)
         val unchanged = SongSourceState(1_000L, 400L)
@@ -34,5 +42,23 @@ class MusicSourceIdentityPolicyTest {
         assertFalse(source.requiresRefresh(unchanged))
         assertTrue(source.requiresRefresh(unchanged.copy(modifiedAtMs = 2_000L)))
         assertTrue(source.requiresRefresh(unchanged.copy(sizeBytes = 500L)))
+    }
+
+    @Test
+    fun `resumen cuenta como conocidos los archivos filtrados antes del importador`() {
+        val source = SongSourceIdentity("music:primary:Music/song.mp3", 1_000L, 400L)
+        val status = MusicScanStatus.completed(
+            indexedSources = listOf(source),
+            knownSources = mapOf(source.key to SongSourceState(1_000L, 400L)),
+            addedSongs = 0,
+            duplicateImports = 0,
+            failedFiles = 0,
+        )
+
+        assertEquals(1, status.indexedFiles)
+        assertEquals(0, status.addedSongs)
+        assertEquals(1, status.duplicates)
+        assertEquals(0, status.failedFiles)
+        assertTrue(status.hasScanned)
     }
 }

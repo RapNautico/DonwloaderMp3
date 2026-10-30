@@ -8,4 +8,22 @@ data class MusicScanStatus(
     val duplicates: Int = 0,
     val failedFiles: Int = 0,
     val error: String? = null,
-)
+) {
+    companion object {
+        fun completed(
+            indexedSources: List<SongSourceIdentity>,
+            knownSources: Map<String, SongSourceState>,
+            addedSongs: Int,
+            duplicateImports: Int,
+            failedFiles: Int,
+        ) = MusicScanStatus(
+            hasScanned = true,
+            indexedFiles = indexedSources.size,
+            addedSongs = addedSongs,
+            duplicates = indexedSources.count { source ->
+                !source.requiresRefresh(knownSources[source.key])
+            } + duplicateImports,
+            failedFiles = failedFiles,
+        )
+    }
+}

@@ -41,8 +41,8 @@ class MediaStoreSourceIdentityResolver(context: Context) {
         displayName: String?,
         legacyPath: String? = null,
     ): String? {
-        val path = relativePath?.takeIf { it.startsWith(MUSIC_DIRECTORY) }
-            ?: legacyPath?.let(::relativeMusicPath)
+        val path = relativePath?.takeIf(MediaStoreAudioPathPolicy::includes)
+            ?: legacyPath?.let(::relativeAudioPath)
             ?: return null
         val filename = displayName ?: path.substringAfterLast('/')
         if (filename.isBlank()) return null
@@ -54,7 +54,9 @@ class MediaStoreSourceIdentityResolver(context: Context) {
         val documentId = DocumentsContract.getDocumentId(uri)
         val volume = documentId.substringBefore(':', missingDelimiterValue = "")
         val path = documentId.substringAfter(':', missingDelimiterValue = "")
-        if (volume.isBlank() || !path.startsWith(MUSIC_DIRECTORY)) return null
+        if (volume.isBlank() || !MediaStoreAudioPathPolicy.includes(path.substringBeforeLast('/', ""))) {
+            return null
+        }
         return MusicSourceIdentityKey.fromRelativePath(volume, path)
     }
 
@@ -98,18 +100,16 @@ class MediaStoreSourceIdentityResolver(context: Context) {
         null
     }
 
-    private fun relativeMusicPath(absolutePath: String): String? {
+    private fun relativeAudioPath(absolutePath: String): String? {
         val root = Environment.getExternalStorageDirectory().canonicalPath
         val path = File(absolutePath).canonicalPath
         val relative = path.removePrefix("$root${File.separator}")
-        return relative.takeIf {
-            relative != path && it.startsWith(MUSIC_DIRECTORY)
-        }
+        val relativeDirectory = relative.substringBeforeLast('/', "")
+        return relative.takeIf { relative != path && MediaStoreAudioPathPolicy.includes(relativeDirectory) }
     }
 
     private companion object {
         const val EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY = "com.android.externalstorage.documents"
         const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
-        const val MUSIC_DIRECTORY = "Music/"
     }
 }

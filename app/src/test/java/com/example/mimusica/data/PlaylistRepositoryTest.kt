@@ -5,7 +5,10 @@ import androidx.room3.Room
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.repository.PlaylistRepositoryImpl
 import com.example.mimusica.data.repository.SongRepositoryImpl
+import com.example.mimusica.domain.model.MusicSourceIdentityKey
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSourceIdentity
+import com.example.mimusica.domain.model.SongSourceRecord
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -95,6 +98,59 @@ class PlaylistRepositoryTest {
         } catch (_: IllegalArgumentException) {
             // El DAO verifica el conjunto completo dentro de la transacción.
         }
+        db.close()
+    }
+
+    @Test
+    fun escaneo_de_audio_conserva_las_15_canciones_SAF_y_sus_relaciones() = runBlocking {
+        val db = openDatabase()
+        val playlists = PlaylistRepositoryImpl(db.playlistDao())
+        val songs = SongRepositoryImpl(db.songDao(), db.songSourceIdentityDao())
+        val safSongs = (1..15).map { index ->
+            song(
+                "content://com.android.externalstorage.documents/document/primary%3AAudio%2Fsong-$index.mp3",
+                "Canción $index",
+            )
+        }
+        songs.addSongs(safSongs)
+        val playlistId = playlists.createPlaylist("Conservadas")
+        safSongs.forEach { playlists.addSong(playlistId, it.uri) }
+
+        val identities = safSongs.indices.map { index ->
+            MusicSourceIdentityKey.fromRelativePath("primary", "Audio/song-${index + 1}.mp3")!!
+        }
+        assertEquals(
+            0,
+            songs.ingest(
+                safSongs.mapIndexed { index, song ->
+                    SongSourceRecord(song, SongSourceIdentity(identities[index]))
+                },
+            ),
+        )
+        assertEquals(
+            0,
+            songs.ingest(
+                safSongs.mapIndexed { index, song ->
+                    SongSourceRecord(
+                        song.copy(
+                            uri = "content://media/external/audio/media/${index + 1}",
+                            title = "Actualizada ${index + 1}",
+                        ),
+                        SongSourceIdentity(identities[index], modifiedAtMs = 1_000L, sizeBytes = 200L),
+                    )
+                },
+            ),
+        )
+
+        assertEquals(
+            safSongs.map { it.uri }.sorted(),
+            songs.observeLibrary().first().map { it.uri }.sorted(),
+        )
+        assertEquals(
+            safSongs.map { it.uri },
+            playlists.observePlaylist(playlistId).first()?.songs?.map { it.uri },
+        )
+        assertEquals(15, songs.observeLibrary().first().size)
         db.close()
     }
 

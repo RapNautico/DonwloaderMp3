@@ -372,7 +372,7 @@ Decisiones de persistencia (ARCHITECTURE §8.1): borrar playlist elimina en casc
 
 # FASE 11 — AJUSTES
 
-Estado: 🟡 EN CURSO — implementación y validación automatizada completadas; pendiente validación en dispositivo.
+Estado: ✅ COMPLETADA (2026-10-29; validación física confirmada por el usuario en Android 14/API 34).
 
 - [x] Apariencia: Sistema · Claro · Oscuro · Dynamic Color (solo API compatible).
 - [x] Biblioteca: orden predeterminado · vista lista/cuadrícula · información de eliminación no destructiva · actualización/escaneo.
@@ -381,15 +381,16 @@ Estado: 🟡 EN CURSO — implementación y validación automatizada completadas
 - [x] Almacenamiento: ubicación y tamaño aproximado de datos privados, caché y base Room; no se borra contenido.
 - [x] Acerca de: versión, propósito y enlaces de licencias.
 - [x] Preferencias con `SharedPreferences` y `StateFlow`; sin dependencias añadidas.
-- [x] Escaneo MediaStore restringido a `Music/`, manual y automático en foreground, con permisos por versión de Android.
+- [x] Escaneo MediaStore de `Music/` durante el cierre original de FASE 11; su alcance se ajusta después de la fase a `Audio/` (ver apartado siguiente).
 - [x] Identidad de fuente volumen+ruta, deduplicación SAF/MediaStore y actualización incremental por fecha/tamaño; Room v5 con migración v4→v5, sin cambiar URI de Song ni claves de playlist.
-- [x] `testDebugUnitTest`: 151 pruebas, 0 fallos/errores; `assembleDebug`: BUILD SUCCESSFUL; `git diff --check`: exit 0.
-- [ ] Validar en un dispositivo permisos, escaneo inicial/manual, detección automática foreground, cambios de archivo y convivencia SAF/MediaStore.
+- [x] `testDebugUnitTest`: 152 pruebas, 0 fallos/errores; `assembleDebug`: BUILD SUCCESSFUL; `git diff --check`: exit 0.
+- [x] Validación física confirmada por el usuario: temas y persistencia de ajustes; permiso de audio concedido/denegado; análisis manual y automático foreground de Music; canción nueva detectada; SAF y deduplicación; playlists; reproducción y restauración de sesión; almacenamiento y licencias.
+- [x] En la validación original se conservaron las 15 canciones SAF y las playlists; un análisis reportó 1 fuente conocida sin duplicado. Ese resultado corresponde al alcance `Music/` entonces vigente.
 
 ### Biblioteca — Detección automática de canciones
 
 - Escaneo automático de archivos de audio disponibles en el dispositivo mediante MediaStore.
-- Detección de canciones de la carpeta Music.
+- Detección dentro del alcance posterior `Audio/`; `Music/` no se incluye en el escaneo automático actual.
 - Incorporación de canciones descubiertas a la biblioteca existente.
 - Evitar duplicados entre canciones descubiertas automáticamente y canciones agregadas mediante SAF.
 - Actualización manual de la biblioteca mediante un escaneo.
@@ -398,6 +399,21 @@ Estado: 🟡 EN CURSO — implementación y validación automatizada completadas
 - Respetar permisos de Android y manejar archivos inaccesibles o eliminados sin borrar registros automáticamente.
 - No duplicar canciones ni perder playlists, metadatos o referencias de reproducción.
 - Definir cómo se identifican y actualizan los archivos que ya existen en Room.
+
+### Ajuste posterior a FASE 11 — `Audio/` y exclusión de WhatsApp (2026-10-29)
+
+Estado: implementación y validación automatizada completadas; validación específica en dispositivo pendiente. FASE 11 permanece cerrada.
+
+- El escaneo Data de MediaStore acepta únicamente rutas relativas cuya carpeta raíz sea `Audio/`; `Music/` ya no pertenece al alcance automático.
+- Se excluyen por ubicación, sin reglas por extensión o duración, `WhatsApp/Media/WhatsApp Audio/`, `WhatsApp/Media/WhatsApp Voice Notes/` y sus equivalentes bajo `Android/media/com.whatsapp/`; la comparación no distingue mayúsculas.
+- El resolver de identidad admite `Audio/` además de conservar el reconocimiento de claves históricas `Music/`. No cambia Room v5, `Song.uri`, las relaciones de playlist ni la importación manual SAF.
+- La primera indexación enlaza las identidades de canciones SAF existentes antes de importar equivalentes MediaStore. No borra canciones ni archivos.
+- Pruebas JVM cubren el alcance, exclusiones y variaciones de caja, SAF manual y conservación de 15 URI SAF y sus relaciones de playlist al registrar alias.
+- `testDebugUnitTest`: 161 pruebas, 0 fallos/errores; `assembleDebug`: BUILD SUCCESSFUL; `git diff --check`: exit 0.
+- `RELATIVE_PATH` se observó en el teléfono Android 14 como una ruta relativa sin `/` inicial. La consulta de solo lectura devolvió 252 filas y cinco rutas distintas: `Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Audio/`, `Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Audio/`, `Download/`, `Music/Zueira/` y `snaptube/download/SnapTube Audio/`. No había filas bajo `Audio/` y `/storage/emulated/0/Audio` no existe; sí existe `/storage/emulated/0/Music`. La detección física de `Audio/` queda pendiente hasta que exista contenido allí y se valide la compilación actualizada.
+- Se documentan las dos rutas observadas de WhatsApp Business, pero no se amplía la lista de exclusiones: ambas quedan fuera por el alcance raíz `Audio/`. Si el escaneo se amplía a otras raíces, se debe decidir explícitamente si excluirlas.
+- Un snapshot Room estable y de solo lectura contenía 15 canciones: 1 URI resolvió a `Music/Zueira/` y 14 a `snaptube/download/SnapTube Audio/`. Cero coincidían con `Audio/`, las cuatro ubicaciones WhatsApp solicitadas o las dos rutas observadas de WhatsApp Business. No se eliminaron registros ni archivos.
+- El escáner anterior consultaba `Music/`, por lo que las rutas WhatsApp observadas fuera de `Music/` no se incorporaron automáticamente mediante ese escaneo. La inspección actual no encontró registros coincidentes; cualquier importación manual posterior podrá seguir usándose por SAF.
 
 ---
 
@@ -463,11 +479,11 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 11 — AJUSTES, en curso. FASE 10 — PLAYLISTS completada; FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
+FASE 11 — AJUSTES, completada (validación física confirmada por el usuario). FASE 10 — PLAYLISTS completada; FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
 
 Último cambio:
 
-FASE 11 — Ajustes y escaneo limitado a Music: preferencias, permisos MediaStore, deduplicación y migración Room v4→v5.
+Ajuste posterior a FASE 11 — escaneo MediaStore de Audio/ y exclusión por ruta de WhatsApp; pendiente validación física específica.
 
 Roadmap replanificado (2026-10-28):
 
@@ -475,7 +491,7 @@ Roadmap replanificado (2026-10-28):
 - FASE 8 — BIBLIOTECA COMPLETA: completada previamente.
 - FASE 9 — REPRODUCTOR: ✅ completada; validación física confirmada por el usuario.
 - FASE 10 — PLAYLISTS: ✅ completada.
-- FASE 11 — AJUSTES: 🟡 EN CURSO; pruebas automatizadas y compilación aprobadas, validación en dispositivo pendiente.
+- FASE 11 — AJUSTES: ✅ COMPLETADA; suite de 152 pruebas, compilación y validación física Android 14 confirmadas.
 - FASE 12 — INTEGRACIÓN FINAL (los flujos importar→reproducir→playlist y compatibilidad con descargas futuras).
 - FASE 13 TESTING / 14 OPTIMIZACIÓN / 15 RELEASE: intactas tras la 12.
 

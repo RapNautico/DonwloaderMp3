@@ -716,10 +716,11 @@ Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de c
 - Preferencias simples implementadas con `SharedPreferences` y `StateFlow`, sin dependencia nueva; `AppSettingsRepository` pertenece a Domain y su implementación a Data.
 - La UI consume y modifica preferencias por `SettingsViewModel`; el tema, orden/vista de biblioteca y opciones de restauración/reproducción se aplican desde sus respectivos puntos de integración.
 - El snapshot válido del reproductor prevalece sobre defaults. Los defaults de repetición/aleatorio se aplican cuando no hay cola restaurada; restaurar sesión y reanudar audio son decisiones separadas.
-- La detección automática usa `MediaStore` y se restringe a `RELATIVE_PATH` bajo `Music/`; solicita `READ_MEDIA_AUDIO` (API 33+) o `READ_EXTERNAL_STORAGE` hasta API 32. El análisis manual requiere el mismo acceso.
+- La detección automática usa `MediaStore` y se restringe a `RELATIVE_PATH` bajo `Audio/` en la raíz del volumen; `Music/` no está en el alcance actual. Se excluyen por ruta (sin filtrar por extensión/duración) las carpetas WhatsApp Audio y WhatsApp Voice Notes enumeradas en PLAN.md, con comparación insensible a mayúsculas. Solicita `READ_MEDIA_AUDIO` (API 33+) o `READ_EXTERNAL_STORAGE` hasta API 32.
 - El `ContentObserver` solo está registrado mientras la app tiene una Activity iniciada y la preferencia está activa. Cambios se agrupan con debounce; consultas e importación corren fuera del hilo principal.
 - `song_source_identities` (Room v5, migración v4→v5) guarda alias de identidad por volumen+ruta relativa y tamaño/fecha de modificación. `songs.uri` y las claves de playlists permanecen intactas; una identidad ambigua no se fusiona.
 - Las canciones nuevas o modificadas se preparan mediante el importador SAF existente. No se eliminan registros ni archivos automáticamente; SAF sigue disponible para proveedores externos.
+- El ajuste posterior a FASE 11 amplía la identidad de origen para la carpeta raíz `Audio/` y enlaza URI SAF existentes antes de importar su equivalente MediaStore; no modifica el esquema ni las URIs almacenadas. La importación SAF manual no usa el filtro de carpetas del escáner. En Android 14, `/storage/emulated/0/Audio` no existe y MediaStore no devolvió filas `Audio/`; sí observó rutas de WhatsApp Business bajo `Android/media/com.whatsapp.w4b/`, fuera de la allowlist `Audio/` y documentadas en PLAN.md. La validación física del escáner actualizado sigue pendiente.
 
 ## Decisiones pendientes (bloqueantes de fases concretas)
 

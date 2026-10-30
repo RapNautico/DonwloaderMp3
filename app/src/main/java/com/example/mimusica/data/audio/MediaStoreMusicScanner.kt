@@ -21,6 +21,7 @@ import com.example.mimusica.domain.repository.SongRepository
 import com.example.mimusica.domain.repository.SongSourceRepository
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +65,7 @@ class MediaStoreMusicScanner(
             }
             mutableStatus.value = MusicScanStatus(isScanning = true)
             try {
-                val indexedFiles = withContext(Dispatchers.IO) { queryMusicFiles() }
+                val indexedFiles = withContext(Dispatchers.IO) { queryAudioFiles() }
                 registerExistingAliases(indexedFiles)
                 val known = sourceRepository.findKnownIdentities(indexedFiles.map { it.identityKey }.distinct())
                 val needsImport = indexedFiles.filter { file ->
@@ -74,11 +75,11 @@ class MediaStoreMusicScanner(
                     uris = needsImport.map { it.uri.toString() },
                     sourceIdentities = needsImport.associate { it.uri.toString() to it.identity },
                 )
-                mutableStatus.value = MusicScanStatus(
-                    hasScanned = true,
-                    indexedFiles = indexedFiles.size,
+                mutableStatus.value = MusicScanStatus.completed(
+                    indexedSources = indexedFiles.map { it.identity },
+                    knownSources = known,
                     addedSongs = report.songsAdded,
-                    duplicates = report.duplicatesSkipped,
+                    duplicateImports = report.duplicatesSkipped,
                     failedFiles = report.failures.size,
                 )
             } catch (cancelled: CancellationException) {
@@ -183,7 +184,7 @@ class MediaStoreMusicScanner(
         return byId[id]
     }
 
-    private fun queryMusicFiles(): List<IndexedMusicFile> {
+    private fun queryAudioFiles(): List<IndexedMusicFile> {
         val results = mutableListOf<IndexedMusicFile>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.getExternalVolumeNames(appContext).forEach { volumeName ->
@@ -198,8 +199,12 @@ class MediaStoreMusicScanner(
                 (contentResolver.query(
                     collection,
                     projection,
-                    "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
-                    arrayOf("$MUSIC_DIRECTORY%"),
+                    "LOWER(${MediaStore.MediaColumns.RELATIVE_PATH}) = ? OR " +
+                        "LOWER(${MediaStore.MediaColumns.RELATIVE_PATH}) LIKE ?",
+                    arrayOf(
+                        AUDIO_DIRECTORY.lowercase(Locale.ROOT),
+                        "${AUDIO_DIRECTORY.lowercase(Locale.ROOT)}/%",
+                    ),
                     null,
                 ) ?: throw IOException("MediaStore query returned no cursor")).use { cursor ->
                     val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -210,7 +215,7 @@ class MediaStoreMusicScanner(
                     while (cursor.moveToNext()) {
                         val name = cursor.getString(nameColumn) ?: continue
                         val path = cursor.getString(pathColumn) ?: continue
-                        if (!path.startsWith(MUSIC_DIRECTORY)) continue
+                        if (!MediaStoreAudioPathPolicy.includes(path)) continue
                         val id = cursor.getLong(idColumn)
                         val uri = ContentUris.withAppendedId(collection, id)
                         val key = identityResolver.identityForMediaStoreItem(volumeName, path, name) ?: continue
@@ -238,11 +243,14 @@ class MediaStoreMusicScanner(
                 MediaStore.MediaColumns.SIZE,
                 MediaStore.MediaColumns.DATE_MODIFIED,
             )
+            val audioRoot = File(Environment.getExternalStorageDirectory(), AUDIO_DIRECTORY)
+                .canonicalPath
+                .lowercase(Locale.ROOT)
             (contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                "$dataColumnName LIKE ?",
-                arrayOf("%/$MUSIC_DIRECTORY%"),
+                "LOWER($dataColumnName) LIKE ?",
+                arrayOf("$audioRoot/%"),
                 null,
             ) ?: throw IOException("MediaStore query returned no cursor")).use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -290,7 +298,7 @@ class MediaStoreMusicScanner(
     )
 
     private companion object {
-        const val MUSIC_DIRECTORY = "Music/"
+        const val AUDIO_DIRECTORY = "Audio"
         const val CONTENT_CHANGE_DEBOUNCE_MS = 700L
     }
 }

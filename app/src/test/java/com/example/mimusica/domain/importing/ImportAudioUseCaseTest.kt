@@ -199,4 +199,22 @@ class ImportAudioUseCaseTest {
 
         assertEquals(listOf("x1", "x2"), importer.requested)
     }
+
+    @Test
+    fun `importacion manual SAF desde Audio y WhatsApp no se filtra por alcance MediaStore`() = runBlocking {
+        val uris = listOf(
+            "content://com.android.externalstorage.documents/document/primary%3AAudio%2Fsong.mp3",
+            "content://com.android.externalstorage.documents/document/primary%3AWhatsApp%2FMedia%2FWhatsApp%20Audio%2Fvoice.mp3",
+        )
+        val importer = FakeImporter(
+            uris.map { uri -> PreparedAudio(uri, uri.substringAfterLast('/'), song = validSong(uri)) },
+        )
+        val repository = FakeSongRepository()
+
+        val report = ImportAudioUseCase(importer, repository)(uris)
+
+        assertEquals(uris, importer.requested)
+        assertEquals(2, report.songsAdded)
+        assertEquals(uris, repository.stored.map { it.uri })
+    }
 }
