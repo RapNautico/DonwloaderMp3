@@ -15,6 +15,7 @@ import com.example.mimusica.domain.model.PlaybackStatus
 import com.example.mimusica.domain.model.PlaybackTrack
 import com.example.mimusica.domain.player.PlayerController
 import com.example.mimusica.domain.player.PlaybackQueuePolicy
+import com.example.mimusica.domain.repository.AppSettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +35,10 @@ import java.util.concurrent.ExecutionException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class Media3PlayerController(context: Context) : PlayerController {
+class Media3PlayerController(
+    context: Context,
+    private val appSettingsRepository: AppSettingsRepository? = null,
+) : PlayerController {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val connectionMutex = Mutex()
@@ -70,6 +74,12 @@ class Media3PlayerController(context: Context) : PlayerController {
         }
         withController { controller ->
             val items = withContext(Dispatchers.Default) { queue.map(::toMediaItem) }
+            if (controller.mediaItemCount == 0) {
+                appSettingsRepository?.settings?.value?.let { settings ->
+                    controller.repeatMode = settings.defaultRepeatMode.toMedia3RepeatMode()
+                    controller.shuffleModeEnabled = settings.defaultShuffle
+                }
+            }
             controller.setMediaItems(items, startIndex, 0L)
             controller.prepare()
             controller.play()

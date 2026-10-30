@@ -89,7 +89,13 @@ flowchart LR
 
 ## 3.7 Settings / Ajustes
 
-- Calidad predeterminada, Wi-Fi solamente, tema (sistema/claro/oscuro), almacenamiento info, temporales, acerca de.
+- **Apariencia:** tema Sistema/Claro/Oscuro y Color dinámico cuando la plataforma lo admite.
+- **Biblioteca:** orden inicial, vista lista/cuadrícula, explicación de que quitar una canción elimina solo su registro, actualización manual de `Music/` y preferencia de observación automática mientras la app está activa.
+- **Reproducción:** restaurar sesión, reanudar automáticamente y defaults de Shuffle/Repeat para una cola sin snapshot restaurado.
+- **Audio:** información honesta de reproducción local; no exponer ecualizador ni efectos inexistentes.
+- **Almacenamiento:** ubicación privada de la aplicación y medición aproximada de archivos privados, caché y base de datos. No contabilizar como propios los archivos externos referenciados por URI ni borrarlos.
+- **Acerca de:** versión, finalidad de la app e información de licencias.
+- El escaneo muestra permiso requerido, procesamiento, resultado y error; la importación manual SAF sigue disponible por separado.
 
 ---
 

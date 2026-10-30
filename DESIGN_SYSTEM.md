@@ -283,7 +283,7 @@ Material 3 usa preferentemente tonal elevation (superficies con tinte del primar
 | Downloads | esqueleto items por estado | EmptyState explicando Estados download | estado Failed con reintento | tarjetas Completed | Downloading/Processing items |
 | Player | ⸺ (No aplica: transmite estado existente; si no hay pista, pantalla vacía/inhabilitada) | ✔ inhabilitación | snackbar de track irrecuperable | contenido | buffer/seekprogress como estado del slider |
 | Añadir audio | — (form) | — (form) | Error por: URL inválida · fuente no autorizada · sin red · sin espacio · formato no soportado | toast/snackbar "Añadido a la biblioteca" | Analyzing/Downloading/Processing en la tarjeta |
-| Settings | carga instantánea (DataStore) | — | snackbar al fallar limpieza de temp | switch persistido | spinner en limpieza temporales |
+| Settings | carga instantánea (SharedPreferences) | — | permiso/escaneo y errores de almacenamiento visibles | preferencias persistidas | progreso de escaneo de Music |
 
 ---
 

@@ -16,13 +16,19 @@ import androidx.sqlite.SQLiteConnection
  * con el app, versión consistente y compatible con tests en JVM).
  */
 @Database(
-    entities = [SongEntity::class, PlaylistEntity::class, PlaylistSongEntity::class],
-    version = 4,
+    entities = [
+        SongEntity::class,
+        PlaylistEntity::class,
+        PlaylistSongEntity::class,
+        SongSourceIdentityEntity::class,
+    ],
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun songSourceIdentityDao(): SongSourceIdentityDao
 
     companion object {
         const val DATABASE_NAME = "mimusica.db"
@@ -98,11 +104,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v4 → v5: additional source aliases; songs.uri and playlist keys stay unchanged. */
+        private val MIGRATION_4_5 = object : Migration(startVersion = 4, endVersion = 5) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                listOf(
+                    """
+                    CREATE TABLE IF NOT EXISTS `song_source_identities` (
+                        `identityKey` TEXT NOT NULL,
+                        `songUri` TEXT NOT NULL,
+                        `modifiedAtMs` INTEGER,
+                        `sizeBytes` INTEGER,
+                        PRIMARY KEY(`identityKey`),
+                        FOREIGN KEY(`songUri`) REFERENCES `songs`(`uri`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                    """
+                    CREATE INDEX IF NOT EXISTS `index_song_source_identities_songUri`
+                    ON `song_source_identities` (`songUri`)
+                    """.trimIndent(),
+                ).forEach { sql ->
+                    connection.prepare(sql).use { statement -> statement.step() }
+                }
+            }
+        }
+
         /** Instancia de producción o pruebas, basada en archivo en disco. */
         fun build(path: String): AppDatabase =
             Room.databaseBuilder<AppDatabase>(name = path)
                 .setDriver(BundledSQLiteDriver())
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
 
         /** Conveniencia para producción con el path estándar de la app. */

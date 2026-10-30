@@ -2,13 +2,17 @@ package com.example.mimusica.data.repository
 
 import com.example.mimusica.data.db.SongDao
 import com.example.mimusica.data.db.SongEntity
+import com.example.mimusica.data.db.SongSourceIdentityDao
 import com.example.mimusica.data.db.toEntity
 import com.example.mimusica.data.db.toSong
 import com.example.mimusica.domain.model.AlbumSummary
 import com.example.mimusica.domain.model.ArtistSummary
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongSort
+import com.example.mimusica.domain.model.SongSourceRecord
+import com.example.mimusica.domain.model.SongSourceState
 import com.example.mimusica.domain.repository.SongRepository
+import com.example.mimusica.domain.repository.SongSourceRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -21,10 +25,24 @@ import kotlinx.coroutines.flow.map
  */
 class SongRepositoryImpl(
     private val dao: SongDao,
-) : SongRepository {
+    private val sourceIdentityDao: SongSourceIdentityDao? = null,
+) : SongRepository, SongSourceRepository {
 
     override suspend fun addSongs(songs: List<Song>): Int =
         dao.insertAll(songs.map { it.toEntity() }).count { rowId -> rowId >= 0 }
+
+    override suspend fun ingest(records: List<SongSourceRecord>): Int =
+        sourceIdentityDao?.ingest(records)
+            ?: dao.insertAll(records.map { it.song.toEntity() }).count { rowId -> rowId >= 0 }
+
+    override suspend fun findKnownIdentities(keys: List<String>): Map<String, SongSourceState> {
+        if (keys.isEmpty() || sourceIdentityDao == null) return emptyMap()
+        return keys.distinct().chunked(400).flatMap { batch ->
+            sourceIdentityDao.findKnown(batch)
+        }.associate {
+            it.identityKey to SongSourceState(it.modifiedAtMs, it.sizeBytes)
+        }
+    }
 
     override suspend fun updateSong(song: Song) {
         dao.update(song.toEntity())

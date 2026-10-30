@@ -39,6 +39,3 @@ fun PlaylistsScreen() = PlaceholderScreen(R.string.playlists)
 
 @Composable
 fun DownloadsScreen() = PlaceholderScreen(R.string.downloads)
-
-@Composable
-fun SettingsScreen() = PlaceholderScreen(R.string.settings)

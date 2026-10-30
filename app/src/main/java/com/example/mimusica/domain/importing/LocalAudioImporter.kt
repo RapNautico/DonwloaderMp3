@@ -25,6 +25,9 @@ data class PreparedAudio(
     val displayName: String?,
     val song: Song? = null,
     val failure: ImportFailureReason? = null,
+    val sourceIdentityKey: String? = null,
+    val sourceModifiedAtMs: Long? = null,
+    val sourceSizeBytes: Long? = null,
 ) {
     val failureReason: ImportFailureReason?
         get() = if (song != null) null else failure ?: ImportFailureReason.UNREADABLE

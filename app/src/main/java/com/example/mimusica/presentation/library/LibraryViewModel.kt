@@ -7,6 +7,7 @@ import com.example.mimusica.domain.model.SongFileAvailability
 import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.domain.repository.SongRepository
 import com.example.mimusica.domain.repository.SongFileValidator
+import com.example.mimusica.domain.repository.AppSettingsRepository
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -33,6 +34,7 @@ class LibraryViewModel(
     private val importAudioUseCase: com.example.mimusica.domain.importing.ImportAudioUseCase,
     private val songRepository: SongRepository,
     songFileValidator: SongFileValidator,
+    private val appSettingsRepository: AppSettingsRepository,
 ) : ViewModel() {
 
     private val importModel = LibraryImportModel { uris, onProgress ->
@@ -87,7 +89,10 @@ class LibraryViewModel(
      * con scope propio: viewModelScope usa Dispatchers.Main, indisponible en
      * pruebas unitarias sin `kotlinx-coroutines-test`, NO autorizada).
      */
-    private val listModel = LibraryListModel(songRepository)
+    private val listModel = LibraryListModel(
+        songRepository = songRepository,
+        initialSort = appSettingsRepository.settings.value.defaultSongSort,
+    )
 
     /** Consulta de búsqueda tal cual el usuario la escribe (el trim aplica al consultar). */
     val searchQuery: StateFlow<String> = listModel.query
@@ -104,6 +109,13 @@ class LibraryViewModel(
     init {
         loadModel.observeIn(viewModelScope, listModel.sort)
         viewModelScope.launch {
+            appSettingsRepository.settings.collect { settings ->
+                if (listModel.sort.value != settings.defaultSongSort) {
+                    listModel.onSortChange(settings.defaultSongSort)
+                }
+            }
+        }
+        viewModelScope.launch {
             loadModel.state.collect { state ->
                 fileCheckModel.retainSongs(state.songs.mapTo(mutableSetOf()) { it.uri })
             }
@@ -119,6 +131,11 @@ class LibraryViewModel(
     /** Cambia el orden del listado (estado de UI; sin DataStore en FASE 8). */
     fun onSortChange(sort: SongSort) {
         listModel.onSortChange(sort)
+        viewModelScope.launch {
+            appSettingsRepository.update(
+                appSettingsRepository.settings.value.copy(defaultSongSort = sort),
+            )
+        }
     }
 
     /** Borra la búsqueda (vuelve al listado completo en el orden actual). */

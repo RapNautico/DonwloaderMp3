@@ -47,6 +47,7 @@ class LibraryListModel(
     private val songRepository: SongRepository,
     /** Debounce de búsqueda en ms (real; el ViewModel le pasa el de producción). */
     val searchDebounceMs: Long = SEARCH_DEBOUNCE_MS,
+    initialSort: SongSort = SongSort.TITLE_ASC,
 ) {
 
     data class VisibleSongs(
@@ -61,7 +62,7 @@ class LibraryListModel(
     val query: StateFlow<String> = _query.asStateFlow()
 
     /** Orden del listado: estado de UI sin persistencia (PLAN 8.3: sin DataStore en FASE 8). */
-    private val _sort = MutableStateFlow(SongSort.TITLE_ASC)
+    private val _sort = MutableStateFlow(initialSort)
     val sort: StateFlow<SongSort> = _sort.asStateFlow()
 
     /** Lista visible = búsqueda filtrada + orden actual. */

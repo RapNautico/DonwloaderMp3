@@ -13,13 +13,19 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.example.mimusica.data.preferences.SharedPreferencesAppSettingsRepository
+import com.example.mimusica.domain.model.AppSettings
 import com.example.mimusica.domain.model.PlaybackTrack
+import com.example.mimusica.domain.model.shouldRestorePlaybackSession
+import com.example.mimusica.domain.model.shouldResumeSavedPlayback
 import java.io.File
 
 class MediaPlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
     private lateinit var snapshotStore: PlaybackSnapshotStore
+    private lateinit var appSettings: AppSettings
+    private var preserveStoredSnapshotIfQueueEmpty = false
     private val persistenceHandler = Handler(Looper.getMainLooper())
     private val persistPosition = object : Runnable {
         override fun run() {
@@ -33,6 +39,7 @@ class MediaPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         snapshotStore = PlaybackSnapshotStore(this)
+        appSettings = SharedPreferencesAppSettingsRepository(this).settings.value
         player = ExoPlayer.Builder(applicationContext).build().apply {
             setAudioAttributes(AudioAttributes.DEFAULT, true)
             setHandleAudioBecomingNoisy(true)
@@ -77,7 +84,16 @@ class MediaPlaybackService : MediaSessionService() {
     }
 
     private fun restoreSnapshot() {
-        val snapshot = snapshotStore.read() ?: return
+        val savedSnapshot = snapshotStore.read()
+        val snapshot = savedSnapshot.takeIf {
+            appSettings.shouldRestorePlaybackSession(hasSnapshot = it != null)
+        }
+        if (snapshot == null) {
+            preserveStoredSnapshotIfQueueEmpty = !appSettings.restoreLastSession && savedSnapshot != null
+            player.repeatMode = appSettings.defaultRepeatMode.toMedia3RepeatMode()
+            player.shuffleModeEnabled = appSettings.defaultShuffle
+            return
+        }
         val items = snapshot.queue.map(::toMediaItem)
         player.setMediaItems(items, snapshot.currentIndex, snapshot.positionMs)
         snapshot.shuffleOrder?.let { order ->
@@ -88,7 +104,7 @@ class MediaPlaybackService : MediaSessionService() {
         player.repeatMode = snapshot.repeatMode.toMedia3RepeatMode()
         player.shuffleModeEnabled = snapshot.shuffleEnabled
         player.prepare()
-        player.playWhenReady = snapshot.playWhenReady
+        player.playWhenReady = appSettings.shouldResumeSavedPlayback(snapshot.playWhenReady)
     }
 
     private fun persistSnapshot() {
@@ -97,9 +113,10 @@ class MediaPlaybackService : MediaSessionService() {
             .map(player::getMediaItemAt)
             .map(::toPlaybackTrack)
         if (queue.isEmpty()) {
-            snapshotStore.clear()
+            if (!preserveStoredSnapshotIfQueueEmpty) snapshotStore.clear()
             return
         }
+        preserveStoredSnapshotIfQueueEmpty = false
         val index = player.currentMediaItemIndex.takeIf { it in queue.indices } ?: 0
         snapshotStore.write(
             PlaybackSnapshot(

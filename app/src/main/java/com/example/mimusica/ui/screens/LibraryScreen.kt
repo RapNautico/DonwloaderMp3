@@ -55,6 +55,7 @@ import com.example.mimusica.components.EmptyState
 import com.example.mimusica.components.LibraryLoadError
 import com.example.mimusica.components.LibraryLoadingSkeleton
 import com.example.mimusica.components.SongList
+import com.example.mimusica.components.SongGrid
 import com.example.mimusica.components.SongRowMenu
 import com.example.mimusica.domain.model.Song
 import com.example.mimusica.domain.model.SongFileAvailability
@@ -62,7 +63,9 @@ import com.example.mimusica.domain.model.SongSort
 import com.example.mimusica.presentation.library.ImportState
 import com.example.mimusica.presentation.library.LibraryViewModel
 import com.example.mimusica.presentation.playlist.PlaylistsViewModel
+import com.example.mimusica.presentation.settings.SettingsViewModel
 import com.example.mimusica.domain.model.PlaylistSummary
+import com.example.mimusica.domain.model.LibraryDisplayMode
 
 /**
  * Library (requisito FASE 5 §7): lista REAL de canciones Room.
@@ -87,7 +90,9 @@ fun LibraryScreen(
     val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
     val viewModel: LibraryViewModel = viewModel(factory = container.viewModelFactory)
     val playlistsViewModel: PlaylistsViewModel = viewModel(factory = container.viewModelFactory)
+    val settingsViewModel: SettingsViewModel = viewModel(factory = container.viewModelFactory)
     val playlistsState by playlistsViewModel.state.collectAsState()
+    val appSettings by settingsViewModel.settings.collectAsState()
     val libraryState by viewModel.libraryState.collectAsState()
     val library = libraryState.songs
     val visibleState by viewModel.visibleSongs.collectAsState()
@@ -211,11 +216,7 @@ fun LibraryScreen(
                     if (libraryState.error != null) {
                         LibraryLoadErrorBanner(onRetry = viewModel::retryLibraryLoad)
                     }
-                    SongList(
-                        visibleSongs,
-                        onSongClick = { song -> onOpenSong(song.uri) },
-                        fileAvailability = fileAvailability,
-                        menuFactory = { song ->
+                    val menuFactory: (Song) -> SongRowMenu = { song ->
                             SongRowMenu(
                                 onPlay = { onPlaySongs(visibleSongs, song.uri) },
                                 onAddToPlaylist = { pendingPlaylistSong = song },
@@ -225,8 +226,21 @@ fun LibraryScreen(
                                 onCheckFile = { viewModel.checkLibrarySongFile(song.uri) },
                                 isCheckingFile = fileAvailability[song.uri] == SongFileAvailability.CHECKING,
                             )
-                        },
-                    )
+                        }
+                    when (appSettings.libraryDisplayMode) {
+                        LibraryDisplayMode.LIST -> SongList(
+                            visibleSongs,
+                            onSongClick = { song -> onOpenSong(song.uri) },
+                            fileAvailability = fileAvailability,
+                            menuFactory = menuFactory,
+                        )
+                        LibraryDisplayMode.GRID -> SongGrid(
+                            visibleSongs,
+                            onSongClick = { song -> onOpenSong(song.uri) },
+                            fileAvailability = fileAvailability,
+                            menuFactory = menuFactory,
+                        )
+                    }
                 }
             }
         }

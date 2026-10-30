@@ -8,14 +8,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.mimusica.data.audio.ArtworkStore
 import com.example.mimusica.data.audio.AudioMetadataReader
+import com.example.mimusica.data.audio.MediaStoreMusicScanner
 import com.example.mimusica.data.audio.SafAudioImporter
 import com.example.mimusica.data.audio.SafSongFileValidator
+import com.example.mimusica.data.audio.MediaStoreSourceIdentityResolver
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.player.Media3PlayerController
+import com.example.mimusica.data.preferences.SharedPreferencesAppSettingsRepository
 import com.example.mimusica.data.repository.PlaylistRepositoryImpl
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.importing.ImportAudioUseCase
 import com.example.mimusica.domain.repository.SongRepository
+import com.example.mimusica.domain.repository.SongSourceRepository
+import com.example.mimusica.domain.repository.MusicLibraryScanner
 import com.example.mimusica.presentation.library.AlbumsViewModel
 import com.example.mimusica.presentation.library.ArtistsViewModel
 import com.example.mimusica.presentation.library.GroupDetailViewModel
@@ -23,6 +28,7 @@ import com.example.mimusica.presentation.library.GroupKind
 import com.example.mimusica.presentation.library.LibraryViewModel
 import com.example.mimusica.presentation.library.SongDetailViewModel
 import com.example.mimusica.presentation.player.PlayerViewModel
+import com.example.mimusica.presentation.settings.SettingsViewModel
 import com.example.mimusica.presentation.playlist.PlaylistDetailViewModel
 import com.example.mimusica.presentation.playlist.PlaylistsViewModel
 
@@ -35,20 +41,39 @@ class AppContainer(private val app: Application) {
 
     // Data
     private val database: AppDatabase by lazy { AppDatabase.build(app) }
-    val songRepository: SongRepository by lazy { SongRepositoryImpl(database.songDao()) }
+    private val songRepositoryImpl by lazy {
+        SongRepositoryImpl(database.songDao(), database.songSourceIdentityDao())
+    }
+    val songRepository: SongRepository by lazy { songRepositoryImpl }
+    val songSourceRepository: SongSourceRepository by lazy { songRepositoryImpl }
     val playlistRepository by lazy { PlaylistRepositoryImpl(database.playlistDao()) }
+    val appSettingsRepository by lazy { SharedPreferencesAppSettingsRepository(app) }
 
     // Importación (FASE 5)
     private val metadataReader by lazy { AudioMetadataReader(app) }
     private val artworkStore by lazy { ArtworkStore(app) }
+    val sourceIdentityResolver by lazy { MediaStoreSourceIdentityResolver(app) }
     private val songFileValidator by lazy { SafSongFileValidator(app, metadataReader) }
     val audioImporter: SafAudioImporter by lazy {
-        SafAudioImporter(app, metadataReader, artworkStore)
+        SafAudioImporter(app, metadataReader, artworkStore, sourceIdentityResolver)
     }
     val importAudioUseCase: ImportAudioUseCase by lazy {
-        ImportAudioUseCase(audioImporter, songRepository)
+        ImportAudioUseCase(audioImporter, songRepository, songSourceRepository)
     }
-    private val playerControllerDelegate = lazy { Media3PlayerController(app) }
+    private val musicLibraryScannerDelegate = lazy {
+        MediaStoreMusicScanner(
+            context = app,
+            importAudio = importAudioUseCase,
+            songRepository = songRepository,
+            sourceRepository = songSourceRepository,
+            settingsRepository = appSettingsRepository,
+            identityResolver = sourceIdentityResolver,
+        )
+    }
+    val musicLibraryScanner: MusicLibraryScanner by musicLibraryScannerDelegate
+    private val playerControllerDelegate = lazy {
+        Media3PlayerController(app, appSettingsRepository)
+    }
     val playerController: Media3PlayerController by playerControllerDelegate
 
     val viewModelFactory by lazy { createViewModelFactory() }
@@ -56,7 +81,12 @@ class AppContainer(private val app: Application) {
     private fun createViewModelFactory(): ViewModelProvider.Factory =
         viewModelFactory {
             initializer {
-                LibraryViewModel(importAudioUseCase, songRepository, songFileValidator)
+                LibraryViewModel(
+                    importAudioUseCase,
+                    songRepository,
+                    songFileValidator,
+                    appSettingsRepository,
+                )
             }
             initializer {
                 ArtistsViewModel(songRepository)
@@ -70,11 +100,27 @@ class AppContainer(private val app: Application) {
             initializer {
                 PlaylistsViewModel(playlistRepository)
             }
+            initializer {
+                SettingsViewModel(appSettingsRepository, musicLibraryScanner, app)
+            }
         }
 
     fun release() {
+        if (musicLibraryScannerDelegate.isInitialized()) {
+            musicLibraryScanner.stopAutomaticUpdates()
+        }
         if (playerControllerDelegate.isInitialized()) {
             playerController.release()
+        }
+    }
+
+    fun startMusicMonitoring() {
+        musicLibraryScanner.startAutomaticUpdates()
+    }
+
+    fun stopMusicMonitoring() {
+        if (musicLibraryScannerDelegate.isInitialized()) {
+            musicLibraryScanner.stopAutomaticUpdates()
         }
     }
 

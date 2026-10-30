@@ -372,15 +372,32 @@ Decisiones de persistencia (ARCHITECTURE §8.1): borrar playlist elimina en casc
 
 # FASE 11 — AJUSTES
 
-Estado: ⬜ Pendiente
+Estado: 🟡 EN CURSO — implementación y validación automatizada completadas; pendiente validación en dispositivo.
 
-- Apariencia: Sistema · Claro · Oscuro · Dynamic Color (evaluar soporte real con el stack actual).
-- Biblioteca: orden predeterminado · vista lista/cuadrícula · comportamiento al eliminar (decisión 8.3) · actualización/escaneo.
-- Reproducción: reanudar última canción · reproducción automática · shuffle/repeat predeterminados · comportamiento al finalizar.
-- Audio: SOLO opciones realmente implementables — configuraciones ficticias prohibidas.
-- Almacenamiento: ubicación · espacio utilizado · archivos temporales · información.
-- Acerca de: versión · información de la app · licencias de terceros.
-- Preferencias sencillas: DataStore CUANDO CORRESPONDA (dependencia nueva → requiere justificación + aprobación explícita; sin añadir ahora).
+- [x] Apariencia: Sistema · Claro · Oscuro · Dynamic Color (solo API compatible).
+- [x] Biblioteca: orden predeterminado · vista lista/cuadrícula · información de eliminación no destructiva · actualización/escaneo.
+- [x] Reproducción: restaurar sesión · reanudar automáticamente · shuffle/repeat predeterminados.
+- [x] Audio: información de reproducción local; no se ofrecen efectos inexistentes.
+- [x] Almacenamiento: ubicación y tamaño aproximado de datos privados, caché y base Room; no se borra contenido.
+- [x] Acerca de: versión, propósito y enlaces de licencias.
+- [x] Preferencias con `SharedPreferences` y `StateFlow`; sin dependencias añadidas.
+- [x] Escaneo MediaStore restringido a `Music/`, manual y automático en foreground, con permisos por versión de Android.
+- [x] Identidad de fuente volumen+ruta, deduplicación SAF/MediaStore y actualización incremental por fecha/tamaño; Room v5 con migración v4→v5, sin cambiar URI de Song ni claves de playlist.
+- [x] `testDebugUnitTest`: 151 pruebas, 0 fallos/errores; `assembleDebug`: BUILD SUCCESSFUL; `git diff --check`: exit 0.
+- [ ] Validar en un dispositivo permisos, escaneo inicial/manual, detección automática foreground, cambios de archivo y convivencia SAF/MediaStore.
+
+### Biblioteca — Detección automática de canciones
+
+- Escaneo automático de archivos de audio disponibles en el dispositivo mediante MediaStore.
+- Detección de canciones de la carpeta Music.
+- Incorporación de canciones descubiertas a la biblioteca existente.
+- Evitar duplicados entre canciones descubiertas automáticamente y canciones agregadas mediante SAF.
+- Actualización manual de la biblioteca mediante un escaneo.
+- Evaluar actualización automática cuando se incorporen nuevos archivos al dispositivo.
+- Mantener la importación manual SAF existente para archivos y carpetas externas.
+- Respetar permisos de Android y manejar archivos inaccesibles o eliminados sin borrar registros automáticamente.
+- No duplicar canciones ni perder playlists, metadatos o referencias de reproducción.
+- Definir cómo se identifican y actualizan los archivos que ya existen en Room.
 
 ---
 
@@ -446,11 +463,11 @@ Estado: ⬜ Pendiente
 
 Fase:
 
-FASE 10 — PLAYLISTS, completada. FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
+FASE 11 — AJUSTES, en curso. FASE 10 — PLAYLISTS completada; FASE 9 completada según confirmación física del usuario; FASE 7 continúa pausada.
 
 Último cambio:
 
-FASE 10 — Playlists: Room m:n, repositorio, navegación, gestión y reproducción desde playlist.
+FASE 11 — Ajustes y escaneo limitado a Music: preferencias, permisos MediaStore, deduplicación y migración Room v4→v5.
 
 Roadmap replanificado (2026-10-28):
 
@@ -458,7 +475,7 @@ Roadmap replanificado (2026-10-28):
 - FASE 8 — BIBLIOTECA COMPLETA: completada previamente.
 - FASE 9 — REPRODUCTOR: ✅ completada; validación física confirmada por el usuario.
 - FASE 10 — PLAYLISTS: ✅ completada.
-- FASE 11 — AJUSTES (DataStore cuando corresponda; aprobación previa).
+- FASE 11 — AJUSTES: 🟡 EN CURSO; pruebas automatizadas y compilación aprobadas, validación en dispositivo pendiente.
 - FASE 12 — INTEGRACIÓN FINAL (los flujos importar→reproducir→playlist y compatibilidad con descargas futuras).
 - FASE 13 TESTING / 14 OPTIMIZACIÓN / 15 RELEASE: intactas tras la 12.
 

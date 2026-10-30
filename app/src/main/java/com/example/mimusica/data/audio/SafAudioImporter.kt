@@ -31,6 +31,8 @@ class SafAudioImporter(
     appContext: Context,
     private val metadataReader: AudioMetadataReader,
     private val artworkStore: ArtworkStore,
+    private val sourceIdentityResolver: MediaStoreSourceIdentityResolver =
+        MediaStoreSourceIdentityResolver(appContext),
 ) : LocalAudioImporter {
 
     private val appContext = appContext.applicationContext
@@ -123,7 +125,13 @@ class SafAudioImporter(
             genre = metadata.genre,
         )
 
-        PreparedAudio(requestedUri = rawUri, displayName = displayName, song = song, failure = null)
+        PreparedAudio(
+            requestedUri = rawUri,
+            displayName = displayName,
+            song = song,
+            failure = null,
+            sourceIdentityKey = sourceIdentityResolver.resolve(rawUri),
+        )
     }
 
     private companion object {

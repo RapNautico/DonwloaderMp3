@@ -10,6 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Card
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.MoreVert
@@ -222,6 +227,78 @@ fun SongList(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
 
+    }
+}
+
+@Composable
+fun SongGrid(
+    songs: List<Song>,
+    onSongClick: ((Song) -> Unit)? = null,
+    menuFactory: ((Song) -> SongRowMenu)? = null,
+    fileAvailability: Map<String, SongFileAvailability> = emptyMap(),
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 156.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(horizontal = 16.dp),
+    ) {
+        items(songs, key = { it.uri }) { song ->
+            Card {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            enabled = onSongClick != null,
+                            onClick = { onSongClick?.invoke(song) },
+                        )
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ArtworkThumbnail(song.artworkPath, size = 96.dp, title = song.title)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 8.dp),
+                        ) {
+                            Text(
+                                text = formatDuration(song.durationMs),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            fileAvailability[song.uri]?.let { availability ->
+                                Text(
+                                    text = fileAvailabilityLabel(availability),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (
+                                        availability == SongFileAvailability.AVAILABLE ||
+                                        availability == SongFileAvailability.CHECKING
+                                    ) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
+                                )
+                            }
+                        }
+                        menuFactory?.let { SongMenuButton(it(song)) }
+                    }
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = song.artist ?: stringResource(R.string.library_unknown_artist),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
     }
 }
 

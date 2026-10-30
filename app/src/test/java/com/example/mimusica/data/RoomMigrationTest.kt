@@ -4,6 +4,8 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.example.mimusica.data.db.AppDatabase
 import com.example.mimusica.data.repository.SongRepositoryImpl
 import com.example.mimusica.domain.model.Song
+import com.example.mimusica.domain.model.SongSourceIdentity
+import com.example.mimusica.domain.model.SongSourceRecord
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -14,7 +16,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * Migraciones Room históricas hasta v4 en JVM (BundledSQLiteDriver, sin emulador).
+ * Migraciones Room históricas hasta v5 en JVM (BundledSQLiteDriver, sin emulador).
  *
  * Estrategia sin `room3-testing` (dependencia NO aprobada): se crea a mano un
  * archivo de base de datos con el esquema exacto de una versión exportada,
@@ -35,6 +37,8 @@ class RoomMigrationTest {
     private val identityHashV1 = "963d146075f2eda33158d0fddb3b140b"
     /** Identity hash del schema v3 exportado (app/schemas/.../3.json). */
     private val identityHashV3 = "08f33a1ce8c8e982c701ef04c5cf88ed"
+    /** Identity hash del schema v4 exportado (app/schemas/4.json). */
+    private val identityHashV4 = "9926a73f10a3d2a9f31acfc21e66cf29"
 
     private lateinit var dbFile: String
 
@@ -147,7 +151,7 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun migracion_1_a_4_conserva_datos_y_crea_las_tablas_de_playlist() = runBlocking {
+    fun migracion_1_a_5_conserva_datos_y_crea_las_tablas_de_playlist() = runBlocking {
         crearBaseV1ConCancion("content://sa/v1cancion", "Canción v1", "Artista v1")
 
         val db = AppDatabase.build(dbFile)
@@ -211,13 +215,14 @@ class RoomMigrationTest {
 
             conn.prepare("PRAGMA user_version").use { statement ->
                 assertTrue(statement.step())
-                assertEquals(4L, statement.getLong(0))
+                assertEquals(5L, statement.getLong(0))
                 val tables = mutableSetOf<String>()
                 conn.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").use { statement ->
                     while (statement.step()) tables += statement.getText(0)
                 }
                 assertTrue("playlists" in tables)
                 assertTrue("playlist_songs" in tables)
+                assertTrue("song_source_identities" in tables)
             }
         }
     }
@@ -298,7 +303,7 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun migracion_3_a_4_conserva_canciones_y_crea_playlist_con_relacion() = runBlocking {
+    fun migracion_3_a_5_conserva_canciones_y_crea_playlist_con_relacion() = runBlocking {
         crearBaseV2ConCancion("content://sa/v3-song", "Canción v3", "Artista v3")
         BundledSQLiteDriver().open(dbFile).use { conn ->
             listOf(
@@ -323,6 +328,99 @@ class RoomMigrationTest {
         assertEquals(
             listOf("content://sa/v3-song"),
             playlistRepository.observePlaylist(playlistId).first()?.songs?.map { it.uri },
+        )
+        db.close()
+    }
+
+    @Test
+    fun migracion_4_a_5_conserva_playlist_y_deduplica_aliases_de_media_store() = runBlocking {
+        val originalUri = "content://saf/music-track"
+        crearBaseV2ConCancion(originalUri, "Canción importada", "Artista")
+        BundledSQLiteDriver().open(dbFile).use { conn ->
+            listOf(
+                "ALTER TABLE songs ADD COLUMN genre TEXT",
+                "CREATE INDEX IF NOT EXISTS `index_songs_album` ON `songs` (`album`)",
+                "CREATE INDEX IF NOT EXISTS `index_songs_dateAddedMs` ON `songs` (`dateAddedMs`)",
+                """
+                CREATE TABLE `playlists` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `name` TEXT NOT NULL
+                )
+                """.trimIndent(),
+                """
+                CREATE TABLE `playlist_songs` (
+                    `playlistId` INTEGER NOT NULL,
+                    `songUri` TEXT NOT NULL,
+                    `position` INTEGER NOT NULL,
+                    PRIMARY KEY(`playlistId`, `songUri`),
+                    FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`)
+                        ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`songUri`) REFERENCES `songs`(`uri`)
+                        ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+                """
+                CREATE INDEX `index_playlist_songs_playlistId_position`
+                ON `playlist_songs` (`playlistId`, `position`)
+                """.trimIndent(),
+                "CREATE INDEX `index_playlist_songs_songUri` ON `playlist_songs` (`songUri`)",
+                "INSERT INTO `playlists` (`id`, `name`) VALUES (1, 'Favoritas')",
+                "INSERT INTO `playlist_songs` (`playlistId`, `songUri`, `position`) VALUES (1, '$originalUri', 0)",
+                "UPDATE room_master_table SET identity_hash = '$identityHashV4' WHERE id = 1",
+                "PRAGMA user_version = 4",
+            ).forEach { sql ->
+                conn.prepare(sql).use { statement -> statement.step() }
+            }
+        }
+
+        val db = AppDatabase.build(dbFile)
+        val repository = SongRepositoryImpl(db.songDao(), db.songSourceIdentityDao())
+        val playlists = com.example.mimusica.data.repository.PlaylistRepositoryImpl(db.playlistDao())
+        val sourceKey = "music:primary:Music/track.mp3"
+        val originalSong = repository.getSong(originalUri)!!
+
+        assertEquals(
+            listOf(originalUri),
+            playlists.observePlaylist(1L).first()?.songs?.map { it.uri },
+        )
+        assertEquals(
+            0,
+            repository.ingest(
+                listOf(
+                    SongSourceRecord(
+                        originalSong,
+                        SongSourceIdentity(sourceKey, modifiedAtMs = 1_000L, sizeBytes = 120L),
+                    ),
+                ),
+            ),
+        )
+
+        val mediaStoreUri = "content://media/external/audio/media/9"
+        assertEquals(
+            0,
+            repository.ingest(
+                listOf(
+                    SongSourceRecord(
+                        originalSong.copy(
+                            uri = mediaStoreUri,
+                            title = "Metadata actualizada",
+                            sizeBytes = 240L,
+                        ),
+                        SongSourceIdentity(sourceKey, modifiedAtMs = 2_000L, sizeBytes = 240L),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("Metadata actualizada", repository.getSong(originalUri)?.title)
+        assertNull(repository.getSong(mediaStoreUri))
+        assertEquals(
+            listOf(originalUri),
+            playlists.observePlaylist(1L).first()?.songs?.map { it.uri },
+        )
+        assertEquals(
+            mapOf(sourceKey to com.example.mimusica.domain.model.SongSourceState(2_000L, 240L)),
+            repository.findKnownIdentities(listOf(sourceKey)),
         )
         db.close()
     }

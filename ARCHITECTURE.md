@@ -711,16 +711,21 @@ Playlist ──< PlaylistSong >── Song   (m:n; orden por índice propio de c
 - La reordenación verifica transaccionalmente que la entrada sea una permutación exacta de las URIs actuales. Nombres se recortan y no pueden quedar vacíos; nombres duplicados se permiten.
 - `PlaylistRepository` expone listas/detalle mediante Flow; reproducir desde la lista o un elemento reutiliza el `PlayerViewModel` y construye la cola desde el orden persistido.
 
-## Arquitectura prevista de ajustes (FASE 11)
+## Arquitectura de ajustes (FASE 11)
 
-- Preferencias simples con DataStore candidato (dependencia nueva pendiente de aprobación; alternativa: hasta entonces, sin settings, nada).
-- Los ajustes afectados a FASE 8–9 (tema, orden, comportamiento de borrar, reanudación) leerán esas preferencias; ninguna opción decorativa sin implementación real.
+- Preferencias simples implementadas con `SharedPreferences` y `StateFlow`, sin dependencia nueva; `AppSettingsRepository` pertenece a Domain y su implementación a Data.
+- La UI consume y modifica preferencias por `SettingsViewModel`; el tema, orden/vista de biblioteca y opciones de restauración/reproducción se aplican desde sus respectivos puntos de integración.
+- El snapshot válido del reproductor prevalece sobre defaults. Los defaults de repetición/aleatorio se aplican cuando no hay cola restaurada; restaurar sesión y reanudar audio son decisiones separadas.
+- La detección automática usa `MediaStore` y se restringe a `RELATIVE_PATH` bajo `Music/`; solicita `READ_MEDIA_AUDIO` (API 33+) o `READ_EXTERNAL_STORAGE` hasta API 32. El análisis manual requiere el mismo acceso.
+- El `ContentObserver` solo está registrado mientras la app tiene una Activity iniciada y la preferencia está activa. Cambios se agrupan con debounce; consultas e importación corren fuera del hilo principal.
+- `song_source_identities` (Room v5, migración v4→v5) guarda alias de identidad por volumen+ruta relativa y tamaño/fecha de modificación. `songs.uri` y las claves de playlists permanecen intactas; una identidad ambigua no se fusiona.
+- Las canciones nuevas o modificadas se preparan mediante el importador SAF existente. No se eliminan registros ni archivos automáticamente; SAF sigue disponible para proveedores externos.
 
 ## Decisiones pendientes (bloqueantes de fases concretas)
 
 - WorkManager/UIDT: motores del pausado sistema de descargas (Fase 7).
 - OkHttp/HttpURLConnection: del motor de descarga pausado (Fase 7).
-- DataStore: para Fase 11 (alternativa: SharedPreferences/documents comunes ya disponibles, menos idiomática).
+- La preferencia de almacenamiento simple de FASE 11 se resolvió con `SharedPreferences`; no se incorporó DataStore.
 - Comportamiento de eliminación de canción (quitar registro vs borrado físico confirmado): se consolidará en FASE 8 §8.3.
 - Almacenamiento final de descargas (app-privado vs MediaStore): Fase 7 al retomarla; FASE 8 no depende de esto.
 - minSdk/dynamic color y demás detalles de apariencia: al definir Fase 11 sobre lo ya implementado.
