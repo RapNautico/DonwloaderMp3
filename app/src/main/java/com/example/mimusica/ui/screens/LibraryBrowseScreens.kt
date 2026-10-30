@@ -1,0 +1,561 @@
+package com.example.mimusica.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.mimusica.MiMusicaApplication
+import com.example.mimusica.R
+import com.example.mimusica.components.EmptyState
+import com.example.mimusica.components.LibraryLoadError
+import com.example.mimusica.components.LibraryLoadingSkeleton
+import com.example.mimusica.components.SongList
+import com.example.mimusica.domain.model.AlbumSummary
+import com.example.mimusica.domain.model.ArtistSummary
+import com.example.mimusica.domain.model.Song
+import com.example.mimusica.presentation.library.AlbumsViewModel
+import com.example.mimusica.presentation.library.ArtistsViewModel
+import com.example.mimusica.presentation.library.GroupDetailState
+import com.example.mimusica.presentation.library.GroupDetailViewModel
+import com.example.mimusica.theme.MiMusicaTheme
+
+/**
+ * Vistas de exploración por ARTISTAS y ÁLBUMES (FASE 8.4, PLAN 8.4):
+ * resúmenes REACTIVOS (Room GROUP BY, sin N+1) con nombre + nº de canciones,
+ * y DETALLE navegable con las canciones del grupo. El bucket desconocido
+ * (nombre `null` del DOMAIN) se rotula SOLO aquí, en presentación, y es un
+ * destino NORMAL de navegación: nunca bloquea ni crashea (requisito 8.4).
+ *
+ * Las pantallas no conocen Room: los ViewModels exponen Domain flows.
+ * Estados: Loading · vacía · error (banner errorContainer; se limpia con el
+ * siguiente éxito, misma política de 8.3) · Success.
+ *
+ * La navegación (rutas anidadas dentro del grafo "library") vive en
+ * MiMusicaApp; las pestañas seleccionan los destinos existentes del grafo.
+ */
+
+enum class LibraryTab(val route: String, val labelRes: Int) {
+    SONGS("library/songs", R.string.library_tab_songs),
+    ARTISTS("library/artists", R.string.library_tab_artists),
+    ALBUMS("library/albums", R.string.library_tab_albums),
+}
+
+@Composable
+fun LibrarySectionTabs(
+    selected: LibraryTab,
+    onSelect: (LibraryTab) -> Unit,
+) {
+    TabRow(selectedTabIndex = selected.ordinal) {
+        LibraryTab.entries.forEach { tab ->
+            Tab(
+                selected = selected == tab,
+                onClick = { onSelect(tab) },
+                text = { Text(stringResource(tab.labelRes)) },
+            )
+        }
+    }
+}
+
+// ---------- Listas de resúmenes ----------
+
+/** Vista de ARTISTAS: fila por artista con su nº de canciones (SQL). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ArtistsScreen(
+    onBack: () -> Unit,
+    onOpenArtist: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
+) {
+    val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
+    val viewModel: ArtistsViewModel = viewModel(factory = container.viewModelFactory)
+    val artists by viewModel.artists.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    ArtistsScreenContent(
+        title = stringResource(R.string.library_artists_title),
+        artists = artists,
+        isLoading = isLoading,
+        error = error,
+        onBack = onBack,
+        onOpenArtist = onOpenArtist,
+        onSelectTab = onSelectTab,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+private fun ArtistsScreenContent(
+    title: String,
+    artists: List<ArtistSummary>,
+    isLoading: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onOpenArtist: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
+    onRetry: () -> Unit,
+) {
+    GroupScreenScaffold(title = title, onBack = onBack) {
+        LibrarySectionTabs(LibraryTab.ARTISTS, onSelectTab)
+        GroupErrorBanner(error.takeIf { artists.isNotEmpty() }, onRetry)
+        when {
+            isLoading && artists.isEmpty() -> LibraryLoadingSkeleton()
+            error != null && artists.isEmpty() -> LibraryLoadError(onRetry)
+            artists.isEmpty() -> Centered {
+                EmptyState(
+                    icon = Icons.Filled.Person,
+                    title = stringResource(R.string.library_empty_title),
+                    description = stringResource(R.string.library_empty_description),
+                )
+            }
+            else -> LazyColumn {
+                items(artists, key = { it.name ?: KEY_UNKNOWN_BUCKET }) { artist ->
+                    GroupRow(
+                        icon = Icons.Filled.Person,
+                        name = artist.name ?: stringResource(R.string.library_unknown_artist),
+                        subtitle = songCountText(artist.songCount),
+                        onClick = { onOpenArtist(artist.name) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+        }
+    }
+}
+
+/** Vista de ÁLBUMES: fila por álbum con su nº de canciones (SQL). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AlbumsScreen(
+    onBack: () -> Unit,
+    onOpenAlbum: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
+) {
+    val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
+    val viewModel: AlbumsViewModel = viewModel(factory = container.viewModelFactory)
+    val albums by viewModel.albums.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    AlbumsScreenContent(
+        title = stringResource(R.string.library_albums_title),
+        albums = albums,
+        isLoading = isLoading,
+        error = error,
+        onBack = onBack,
+        onOpenAlbum = onOpenAlbum,
+        onSelectTab = onSelectTab,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+private fun AlbumsScreenContent(
+    title: String,
+    albums: List<AlbumSummary>,
+    isLoading: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onOpenAlbum: (String?) -> Unit,
+    onSelectTab: (LibraryTab) -> Unit,
+    onRetry: () -> Unit,
+) {
+    GroupScreenScaffold(title = title, onBack = onBack) {
+        LibrarySectionTabs(LibraryTab.ALBUMS, onSelectTab)
+        GroupErrorBanner(error.takeIf { albums.isNotEmpty() }, onRetry)
+        when {
+            isLoading && albums.isEmpty() -> LibraryLoadingSkeleton()
+            error != null && albums.isEmpty() -> LibraryLoadError(onRetry)
+            albums.isEmpty() -> Centered {
+                EmptyState(
+                    icon = Icons.Filled.Album,
+                    title = stringResource(R.string.library_empty_title),
+                    description = stringResource(R.string.library_empty_description),
+                )
+            }
+            else -> LazyColumn {
+                items(albums, key = { it.name ?: KEY_UNKNOWN_BUCKET }) { album ->
+                    GroupRow(
+                        icon = Icons.Filled.Album,
+                        name = album.name ?: stringResource(R.string.library_unknown_album),
+                        subtitle = songCountText(album.songCount),
+                        onClick = { onOpenAlbum(album.name) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+        }
+    }
+}
+
+// ---------- Detalle ----------
+
+/** Detalle de UN ARTISTA: sus canciones con el orden SQL de 8.2 (getByArtist). */
+@Composable
+fun ArtistDetailScreen(
+    name: String?,
+    onBack: () -> Unit,
+    onSongOpen: (String) -> Unit,
+) {
+    val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
+    val viewModel: GroupDetailViewModel = viewModel(
+        factory = container.artistDetailViewModelFactory(name),
+    )
+    val estado by viewModel.state.collectAsState()
+
+    GroupDetailScreenContent(
+        title = name ?: stringResource(R.string.library_unknown_artist),
+        state = estado,
+        onBack = onBack,
+        onSongOpen = onSongOpen,
+        onRetry = viewModel::retry,
+    )
+}
+
+/** Detalle de UN ÁLBUM: sus canciones con el orden SQL de 8.2 (getByAlbum). */
+@Composable
+fun AlbumDetailScreen(
+    name: String?,
+    onBack: () -> Unit,
+    onSongOpen: (String) -> Unit,
+) {
+    val container = (LocalContext.current.applicationContext as MiMusicaApplication).container
+    val viewModel: GroupDetailViewModel = viewModel(
+        factory = container.albumDetailViewModelFactory(name),
+    )
+    val estado by viewModel.state.collectAsState()
+
+    GroupDetailScreenContent(
+        title = name ?: stringResource(R.string.library_unknown_album),
+        state = estado,
+        onBack = onBack,
+        onSongOpen = onSongOpen,
+        onRetry = viewModel::retry,
+    )
+}
+
+@Composable
+private fun GroupDetailScreenContent(
+    title: String,
+    state: GroupDetailState,
+    onBack: () -> Unit,
+    onSongOpen: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    GroupScreenScaffold(title = title, onBack = onBack) {
+        GroupDetailContent(state, onSongOpen, onRetry)
+    }
+}
+
+@Composable
+private fun GroupDetailContent(
+    estado: GroupDetailState,
+    onSongOpen: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    when (estado) {
+        GroupDetailState.Loading -> LibraryLoadingSkeleton()
+        is GroupDetailState.Content -> {
+            if (estado.songs.isEmpty()) {
+                Centered {
+                    EmptyState(
+                        icon = Icons.Filled.Person,
+                        title = stringResource(R.string.library_group_empty_title),
+                        description = stringResource(R.string.library_group_empty_description),
+                    )
+                }
+            } else {
+                // FASE 8.5: tap en fila → detalle de canción (bottom sheet).
+                SongList(estado.songs, onSongClick = { song -> onSongOpen(song.uri) })
+            }
+        }
+        is GroupDetailState.Error -> GroupErrorBanner(estado.message, onRetry)
+    }
+}
+
+// ---------- Componentes compartidos de estas pantallas ----------
+
+/**
+ * Scaffold común de artistas/álbumes y detalles: top bar transparente (como
+ * Library) con flecha de retroceso; el título corta con ellipsis (filas de
+ * artistas/álbumes largos, DESIGN_SYSTEM §2).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupScreenScaffold(
+    title: String,
+    onBack: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.nav_back),
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+            )
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            content()
+        }
+    }
+}
+
+/** Fila de resumen (artista/álbum): icono, NOMBRE y Nº DE CANCIONES reales. */
+@Composable
+private fun GroupRow(
+    icon: ImageVector,
+    name: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick) // el bucket desconocido TAMBIÉN navega
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.primaryContainer,
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.padding(8.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Banner de error (errorContainer) del mismo estilo que el de 8.3. */
+@Composable
+private fun GroupErrorBanner(error: String?, onRetry: (() -> Unit)? = null) {
+    if (error != null) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.errorContainer,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.library_browse_error),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                if (onRetry != null) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Contenido centrado verticalmente (estados Loading / vacío). */
+@Composable
+private fun Centered(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        content()
+    }
+}
+
+@Preview(name = "Artistas - contenido", showBackground = true)
+@Composable
+private fun ArtistsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        ArtistsScreenContent(
+            title = "Artistas",
+            artists = listOf(ArtistSummary("Artista de ejemplo", 3), ArtistSummary(null, 1)),
+            isLoading = false,
+            error = null,
+            onBack = {},
+            onOpenArtist = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Artistas - error oscuro", showBackground = true)
+@Composable
+private fun ArtistsErrorPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        ArtistsScreenContent(
+            title = "Artistas",
+            artists = emptyList(),
+            isLoading = false,
+            error = "Error de ejemplo",
+            onBack = {},
+            onOpenArtist = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Álbumes - contenido", showBackground = true)
+@Composable
+private fun AlbumsScreenPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        AlbumsScreenContent(
+            title = "Álbumes",
+            albums = listOf(AlbumSummary("Álbum de ejemplo", 8), AlbumSummary(null, 2)),
+            isLoading = false,
+            error = null,
+            onBack = {},
+            onOpenAlbum = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Álbumes - vacío oscuro", showBackground = true)
+@Composable
+private fun AlbumsEmptyPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        AlbumsScreenContent(
+            title = "Álbumes",
+            albums = emptyList(),
+            isLoading = false,
+            error = null,
+            onBack = {},
+            onOpenAlbum = {},
+            onSelectTab = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de artista - contenido", showBackground = true)
+@Composable
+private fun ArtistDetailPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        GroupDetailScreenContent(
+            title = "Artista de ejemplo",
+            state = GroupDetailState.Content(
+                listOf(
+                    Song(
+                        uri = "preview://song",
+                        title = "Canción de ejemplo",
+                        artist = "Artista de ejemplo",
+                        album = "Álbum de ejemplo",
+                        durationMs = 180_000L,
+                        dateAddedMs = 1L,
+                    ),
+                ),
+            ),
+            onBack = {},
+            onSongOpen = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de álbum - cargando oscuro", showBackground = true)
+@Composable
+private fun AlbumDetailLoadingPreview() {
+    MiMusicaTheme(darkTheme = true, dynamicColor = false) {
+        GroupDetailScreenContent(
+            title = "Álbum de ejemplo",
+            state = GroupDetailState.Loading,
+            onBack = {},
+            onSongOpen = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview(name = "Detalle de grupo - error", showBackground = true)
+@Composable
+private fun GroupDetailErrorPreview() {
+    MiMusicaTheme(darkTheme = false, dynamicColor = false) {
+        GroupDetailScreenContent(
+            title = "Grupo de ejemplo",
+            state = GroupDetailState.Error("Error de ejemplo"),
+            onBack = {},
+            onSongOpen = {},
+            onRetry = {},
+        )
+    }
+}
+
+/** Conteo localizado de canciones ("1 canción" / "N canciones"); dato REAL. */
+@Composable
+private fun songCountText(count: Int): String =
+    pluralStringResource(R.plurals.library_song_count, count, count)
+
+/**
+ * Clave estable para la ÚNICA fila del bucket desconocido (name = null):
+ * nunca colisiona con un nombre real porque contiene un carácter nulo.
+ */
+private const val KEY_UNKNOWN_BUCKET = "\u0000"

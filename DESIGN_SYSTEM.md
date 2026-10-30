@@ -201,7 +201,7 @@ Material 3 usa preferentemente tonal elevation (superficies con tinte del primar
  └─────────────────────────────────────┘
 ```
 
-- Búsqueda activa → filtra por título/artista/álbum en vivo sobre la consulta Room con `Flow` (debounce 300 ms).
+- Búsqueda activa → filtra por título/artista/álbum en vivo sobre la consulta Room con `Flow` (debounce 500 ms).
 - Selección múltiple (long-press) solo si se hace de una vez en FASE 9; mantener fuera del MVP visual por decisión de simplificación.
 
 ## 6.4 Player (pantalla completa / bottom sheet expandible)
@@ -283,7 +283,7 @@ Material 3 usa preferentemente tonal elevation (superficies con tinte del primar
 | Downloads | esqueleto items por estado | EmptyState explicando Estados download | estado Failed con reintento | tarjetas Completed | Downloading/Processing items |
 | Player | ⸺ (No aplica: transmite estado existente; si no hay pista, pantalla vacía/inhabilitada) | ✔ inhabilitación | snackbar de track irrecuperable | contenido | buffer/seekprogress como estado del slider |
 | Añadir audio | — (form) | — (form) | Error por: URL inválida · fuente no autorizada · sin red · sin espacio · formato no soportado | toast/snackbar "Añadido a la biblioteca" | Analyzing/Downloading/Processing en la tarjeta |
-| Settings | carga instantánea (DataStore) | — | snackbar al fallar limpieza de temp | switch persistido | spinner en limpieza temporales |
+| Settings | carga instantánea (SharedPreferences) | — | permiso/escaneo y errores de almacenamiento visibles | preferencias persistidas | progreso de escaneo de Music |
 
 ---
 
@@ -301,7 +301,20 @@ Material 3 usa preferentemente tonal elevation (superficies con tinte del primar
 | Riesgo | Mitigación |
 |---|---|
 | Sin skill de UI/UX instalada (verificado con find-skills) | Se sigue M3 oficial; wireframes revisados por fases; si se desea, instalar una skill confiable en el futuro cuando exista con comunidad de respaldo. |
-| Fallback dynamic color | Ambos modos definidos y testeados en preview de Compose y AVD API 37 + verificación en un AVD API menor si se instala plataforma para minSdk (decisión de Fase 3). |
+| Fallback dynamic color | Paletas clara y oscura definidas. La compilación de previews no equivale a una inspección visual: la revisión en Android Studio sigue pendiente; no se atribuye validación en AVD API 37 a esta mejora. |
 | Portadas faltantes | Fallback icono neutral siempre definido. |
 | Texto largo en idiomas | maxLines + ellipsis definido por componente. |
 | Pantalla Player en landscape | Layout adaptativo: portada a la izquierda, controles derecha (spec: FASE 10 implementación). |
+
+# 10. VISTAS PREVIAS DE COMPOSE
+
+Las pantallas y componentes visuales implementados deben ofrecer `@Preview` para inspeccionar su interfaz en Android Studio sin iniciar servicios ni acceder a datos reales. Mantener previews al añadir o cambiar estados visuales relevantes.
+
+- Las previews se envuelven en `MiMusicaTheme` con color dinámico desactivado; se muestran variantes claras y oscuras cuando aporta valor.
+- La UI de Biblioteca se representa mediante un composable de contenido que recibe estado y acciones; el `ViewModel`, SAF y el contenedor de datos permanecen en la entrada de producción.
+- Los estados de carga, vacío, importación, error y contenido se pueden inspeccionar de forma independiente. Los datos sintéticos, si se necesitan para una preview, se identifican explícitamente como ejemplos y no se usan en la aplicación. Los callbacks pueden ser no-op para que la preview no realice acciones externas.
+- El preview del shell usa la ruta inicial Inicio; las pantallas también tienen previews individuales. Los componentes persistentes de navegación se pueden inspeccionar por separado.
+- Las pantallas placeholder se previsualizan como existen actualmente; la preview no habilita ni simula funcionalidades futuras. La existencia de una preview no implica que la función de la pantalla esté implementada.
+- Convención al crear una preview: colocar una función `@Composable` de preview cerca del componente, envolver el contenido en `MiMusicaTheme`, escoger estado/valores representativos explícitos y evitar dependencias de `LocalContext`, servicios, contenedores DI, ViewModels o repositorios reales.
+- Tras compilar, abrir Android Studio > Design/Preview y comprobar el renderizado, recortes y variantes de tema. Una compilación correcta confirma la declaración, no el renderizado ni la inspección visual.
+- En el código actual hay 21 anotaciones `@Preview` compiladas para pantallas, shell y componentes; la inspección visual individual en Android Studio permanece pendiente. Las previews son herramientas del IDE, no sustituyen pruebas ni modifican el comportamiento en ejecución.

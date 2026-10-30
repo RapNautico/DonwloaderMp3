@@ -1,10 +1,65 @@
 # AGENTS.md
 
-# MI MÚSICA
+# Mi Música — Instrucciones del proyecto
 
 Aplicación Android para gestión, descarga permitida y reproducción local de audio.
 
 El objetivo es construir una aplicación Android moderna, estable, segura y mantenible.
+
+## Objetivo
+Aplicación Android para gestionar y reproducir música local.
+
+## Estado
+Consultar PLAN.md para la fase actual.
+
+## Documentación obligatoria
+Antes de modificar código:
+- PLAN.md
+- ARCHITECTURE.md
+- DESIGN.md
+- DESIGN_SYSTEM.md
+
+## Arquitectura
+Presentation → Domain → Data
+
+Monomódulo inicialmente.
+
+DI manual.
+
+## Stack
+Android
+Kotlin
+Jetpack Compose
+Material 3
+Room
+Media3 (cuando corresponda)
+
+## Reglas
+- No cambiar versiones sin justificarlo.
+- No introducir dependencias innecesarias.
+- No romper la arquitectura existente.
+- No implementar funcionalidades de fases futuras.
+- No afirmar que una prueba pasó si no fue ejecutada.
+- No hacer commit/push automáticamente.
+- No introducir secretos.
+- No inventar metadatos de audio.
+- No implementar bypass de DRM.
+- Respetar las APIs oficiales de Android.
+
+## Flujo de trabajo
+1. Leer documentación.
+2. Inspeccionar código existente.
+3. Analizar.
+4. Proponer cambios.
+5. Implementar.
+6. Ejecutar pruebas.
+7. Documentar resultados.
+8. Esperar instrucciones para Git.
+
+## Git
+main = estable.
+
+Las fases nuevas se desarrollan en ramas feature/fase-X-nombre.
 
 ---
 
